@@ -1,0 +1,18 @@
+<?php
+session_start();
+require_once __DIR__ . '/../config/constants.php';
+requireLogin();
+
+$file = __DIR__ . '/templates/student_import_template.csv';
+
+if (!file_exists($file)) {
+    header('HTTP/1.0 404 Not Found');
+    echo 'Template file not found.';
+    exit;
+}
+
+header('Content-Type: text/csv');
+header('Content-Disposition: attachment; filename="student_import_template.csv"');
+header('Content-Length: ' . filesize($file));
+readfile($file);
+exit;
