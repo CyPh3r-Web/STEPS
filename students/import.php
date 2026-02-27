@@ -83,10 +83,17 @@ while (($row = fgetcsv($handle)) !== false) {
     $firstName = trim($row[$colIndex['first name']] ?? '');
     $middleName = trim($row[$colIndex['middle name']] ?? '');
     $gender    = trim($row[$colIndex['gender']] ?? '');
-    $birthdate = trim($row[$colIndex['birthdate']] ?? '');
+    $birthdate = array_key_exists('birthdate', $colIndex) ? trim($row[$colIndex['birthdate']] ?? '') : '';
     $sectionName = strtolower(trim($row[$colIndex['section name']] ?? ''));
     $strandCode  = strtolower(trim($row[$colIndex['strand code']] ?? ''));
     $schoolYear  = trim($row[$colIndex['school year']] ?? '');
+
+    // Normalize LRNs that may have been saved in scientific notation (e.g. 1.001E+11)
+    if ($lrn !== '' && preg_match('/^[0-9]+(?:\.[0-9]+)?[eE][+-]?[0-9]+$/', $lrn)) {
+        $lrnFloat = (float)$lrn;
+        // Convert to a whole-number string without scientific notation
+        $lrn = sprintf('%.0F', $lrnFloat);
+    }
 
     if (empty($lrn) || empty($lastName) || empty($firstName) || empty($gender) || empty($schoolYear)) {
         $errors[] = "Row $rowNum: Missing required fields (LRN, name, gender, or school year), skipped.";
@@ -120,10 +127,31 @@ while (($row = fgetcsv($handle)) !== false) {
     }
 
     $birthdateFormatted = null;
-    if ($birthdate) {
-        $parsed = strtotime($birthdate);
-        if ($parsed) {
-            $birthdateFormatted = date('Y-m-d', $parsed);
+    if ($birthdate !== '') {
+        // Excel exports dates as serial numbers (e.g. 39448); 25569 = 1970-01-01 in Excel
+        if (is_numeric($birthdate)) {
+            $serial = (float) $birthdate;
+            if ($serial >= 1 && $serial <= 2958465) {
+                $birthdateFormatted = date('Y-m-d', (int)(($serial - 25569) * 86400));
+            }
+        }
+        // Use explicit formats only — prioritize DD/MM/YYYY (common in PH/Excel) before MM/DD/YYYY
+        if (!$birthdateFormatted) {
+            $formats = ['Y-m-d', 'd/m/Y', 'd-m-Y', 'd.m.Y', 'Y/m/d', 'm/d/Y', 'm-d-Y', 'j F Y', 'F j Y'];
+            foreach ($formats as $fmt) {
+                $dt = DateTime::createFromFormat($fmt, $birthdate);
+                if ($dt && $dt->format($fmt) === $birthdate) {
+                    $birthdateFormatted = $dt->format('Y-m-d');
+                    break;
+                }
+            }
+        }
+        // Last resort: strtotime for any remaining text formats
+        if (!$birthdateFormatted) {
+            $parsed = strtotime($birthdate);
+            if ($parsed && $parsed > 0) {
+                $birthdateFormatted = date('Y-m-d', $parsed);
+            }
         }
     }
 

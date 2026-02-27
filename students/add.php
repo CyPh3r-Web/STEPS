@@ -9,6 +9,10 @@ $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $lrn = sanitize($_POST['lrn']);
+    if ($lrn !== '' && preg_match('/^[0-9]+(?:\.[0-9]+)?[eE][+-]?[0-9]+$/', $lrn)) {
+        $lrnFloat = (float)$lrn;
+        $lrn = sprintf('%.0F', $lrnFloat);
+    }
     $firstName = sanitize($_POST['first_name']);
     $lastName = sanitize($_POST['last_name']);
     $middleName = sanitize($_POST['middle_name']);

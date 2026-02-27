@@ -119,7 +119,10 @@ $stmt = $pdo->prepare($query);
 $stmt->execute($params);
 $students = $stmt->fetchAll();
 
-// Filter by competency status after fetching
+// Preserve full list for status summary cards
+$studentsForStats = $students;
+
+// Filter by competency status after fetching (for table and "Total Students" count)
 if ($statusFilter) {
     $students = array_filter($students, function($s) use ($statusFilter) {
         if ($s['avg_grade'] === null) return false;
@@ -128,8 +131,8 @@ if ($statusFilter) {
     });
 }
 
-// Counts for quick stats
-$studentsWithGrades = array_filter($students, fn($s) => $s['avg_grade'] !== null);
+// Counts for quick stats should always be based on the unfiltered list (respecting search/section/strand filters)
+$studentsWithGrades = array_filter($studentsForStats, fn($s) => $s['avg_grade'] !== null);
 $weakStudents = count(array_filter($studentsWithGrades, fn($s) => getCompetencyLevel($s['avg_grade'])['level'] === 'weak'));
 $atRiskStudents = count(array_filter($studentsWithGrades, fn($s) => getCompetencyLevel($s['avg_grade'])['level'] === 'at_risk'));
 $profStudents = count(array_filter($studentsWithGrades, fn($s) => getCompetencyLevel($s['avg_grade'])['level'] === 'proficient'));
