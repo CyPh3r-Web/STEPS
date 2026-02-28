@@ -14,9 +14,10 @@ $editId = $_GET['edit_id'] ?? '';
 $success = '';
 $error = '';
 $openModal = '';
+$isGuidance = (($_SESSION['role'] ?? '') === 'guidance');
 
 // Handle Add Student
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'add') {
+if (!$isGuidance && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'add') {
     $lrn = sanitize($_POST['lrn']);
     $firstName = sanitize($_POST['first_name']);
     $lastName = sanitize($_POST['last_name']);
@@ -46,7 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 }
 
 // Handle Edit Student
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'edit') {
+if (!$isGuidance && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'edit') {
     $id = (int)$_POST['student_id'];
     $lrn = sanitize($_POST['lrn']);
     $firstName = sanitize($_POST['first_name']);
@@ -79,7 +80,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 }
 
 // Handle Delete
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_id'])) {
+if (!$isGuidance && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_id'])) {
     $delStmt = $pdo->prepare("UPDATE students SET status = 'inactive' WHERE id = ?");
     $delStmt->execute([$_POST['delete_id']]);
     header('Location: ' . BASE_URL . 'students/index.php?msg=deleted');
@@ -297,6 +298,7 @@ $filterBase = array_filter(['search' => $search, 'section' => $sectionFilter, 's
             </a>
         <?php endif; ?>
     </div>
+    <?php if (!$isGuidance): ?>
     <div class="flex gap-2">
         <button onclick="openModal('importModal')" class="btn btn-secondary btn-sm">
             <i class="fas fa-file-upload"></i> Bulk Import
@@ -305,6 +307,7 @@ $filterBase = array_filter(['search' => $search, 'section' => $sectionFilter, 's
             <i class="fas fa-plus"></i> Add Student
         </button>
     </div>
+    <?php endif; ?>
 </div>
 
 <!-- Students Table -->
@@ -347,11 +350,13 @@ $filterBase = array_filter(['search' => $search, 'section' => $sectionFilter, 's
                         <td>
                             <div class="flex items-center gap-2">
                                 <a href="<?= BASE_URL ?>students/view.php?id=<?= $s['id'] ?>" class="text-blue-600 hover:text-blue-800" title="View"><i class="fas fa-eye"></i></a>
+                                <?php if (!$isGuidance): ?>
                                 <button onclick="loadEditStudent(<?= $s['id'] ?>)" class="text-gray-500 hover:text-gray-700" title="Edit"><i class="fas fa-edit"></i></button>
                                 <form method="POST" class="inline" onsubmit="event.preventDefault(); confirmDelete(this, 'this student');">
                                     <input type="hidden" name="delete_id" value="<?= $s['id'] ?>">
                                     <button type="submit" class="text-red-500 hover:text-red-700" title="Remove"><i class="fas fa-trash"></i></button>
                                 </form>
+                                <?php endif; ?>
                             </div>
                         </td>
                     </tr>
@@ -364,6 +369,7 @@ $filterBase = array_filter(['search' => $search, 'section' => $sectionFilter, 's
     </div>
 </div>
 
+<?php if (!$isGuidance): ?>
 <!-- ADD STUDENT MODAL -->
 <div class="modal-overlay" id="addStudentModal">
     <div class="modal-content" style="max-width:620px;">
@@ -595,9 +601,11 @@ $filterBase = array_filter(['search' => $search, 'section' => $sectionFilter, 's
         </form>
     </div>
 </div>
+<?php endif; ?>
 
 <script>
 // File upload UX
+<?php if (!$isGuidance): ?>
 const csvInput = document.getElementById('csvFileInput');
 const dropZone = document.getElementById('dropZone');
 const placeholder = document.getElementById('uploadPlaceholder');
@@ -634,11 +642,12 @@ dropZone.addEventListener('drop', function(e) {
         csvInput.dispatchEvent(new Event('change'));
     }
 });
+<?php endif; ?>
 </script>
 
+<?php if (!$isGuidance): ?>
 <script>
 <?php
-// Build a JS-safe student data map for edit modal
 $studentDataMap = [];
 foreach ($students as $s) {
     $studentDataMap[$s['id']] = [
@@ -674,5 +683,6 @@ document.addEventListener('DOMContentLoaded', function() { openModal('addStudent
 document.addEventListener('DOMContentLoaded', function() { openModal('editStudentModal'); });
 <?php endif; ?>
 </script>
+<?php endif; ?>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

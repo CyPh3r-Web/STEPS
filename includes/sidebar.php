@@ -71,6 +71,7 @@ function sidebarLinkClass($active) {
            class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors <?= sidebarLinkClass($currentDir === 'students' && $currentPage !== 'grades') ?>" title="Students">
             <i class="fas fa-user-graduate w-5 flex-shrink-0 text-center"></i><span class="sidebar-link-text">Students</span>
         </a>
+        <?php if ($role === 'admin' || $role === 'teacher'): ?>
         <a href="<?= BASE_URL ?>sections/index.php"
            class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors <?= sidebarLinkClass($currentDir === 'sections') ?>" title="Sections">
             <i class="fas fa-layer-group w-5 flex-shrink-0 text-center"></i><span class="sidebar-link-text">Sections</span>
@@ -79,7 +80,6 @@ function sidebarLinkClass($active) {
            class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors <?= sidebarLinkClass($currentDir === 'subjects') ?>" title="Subjects">
             <i class="fas fa-book w-5 flex-shrink-0 text-center"></i><span class="sidebar-link-text">Subjects</span>
         </a>
-        <?php if ($role === 'teacher' || $role === 'admin'): ?>
         <a href="<?= BASE_URL ?>students/grades.php"
            class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors <?= sidebarLinkClass($currentPage === 'grades') ?>" title="Grades">
             <i class="fas fa-clipboard-list w-5 flex-shrink-0 text-center"></i><span class="sidebar-link-text">Grades</span>

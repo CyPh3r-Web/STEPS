@@ -13,6 +13,16 @@ $quarterFilter = $_GET['quarter'] ?? '';
 $success = '';
 $error = '';
 
+// Handle grade import result from session
+$gradeImportResult = null;
+if (isset($_GET['msg']) && $_GET['msg'] === 'imported' && isset($_SESSION['grade_import_result'])) {
+    $gradeImportResult = $_SESSION['grade_import_result'];
+    unset($_SESSION['grade_import_result']);
+}
+if (isset($_GET['import_error'])) {
+    $error = htmlspecialchars($_GET['import_error']);
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
@@ -40,12 +50,53 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $students = [];
+$gradedCount = 0;
+$ungradedCount = 0;
+
 if ($sectionFilter && $subjectFilter && $quarterFilter) {
-    $stmt = $pdo->prepare("SELECT s.*, 
-        (SELECT g.grade FROM grades g WHERE g.student_id = s.id AND g.subject_id = ? AND g.quarter = ? AND g.school_year = ? LIMIT 1) as existing_grade
-        FROM students s WHERE s.section_id = ? AND s.status = 'active' ORDER BY s.last_name, s.first_name");
+    $stmt = $pdo->prepare(
+        "SELECT s.id, s.lrn, s.first_name, s.last_name,
+            g.id        AS grade_id,
+            g.grade     AS existing_grade,
+            g.updated_at AS graded_at,
+            u.full_name  AS encoded_by_name
+         FROM students s
+         LEFT JOIN grades g
+            ON g.student_id = s.id
+            AND g.subject_id = ?
+            AND g.quarter    = ?
+            AND g.school_year = ?
+         LEFT JOIN users u ON u.id = g.encoded_by
+         WHERE s.section_id = ? AND s.status = 'active'
+         ORDER BY s.last_name, s.first_name"
+    );
     $stmt->execute([$subjectFilter, $quarterFilter, SCHOOL_YEAR, $sectionFilter]);
     $students = $stmt->fetchAll();
+
+    foreach ($students as $s) {
+        if ($s['existing_grade'] !== null) $gradedCount++;
+        else $ungradedCount++;
+    }
+}
+
+// For the overview table: fetch ALL graded records for the selected section (any subject/quarter)
+// scoped to current school year so teacher sees the full picture
+$overviewGrades = [];
+if ($sectionFilter) {
+    $ovStmt = $pdo->prepare(
+        "SELECT s.last_name, s.first_name, s.lrn,
+                sub.subject_code, sub.subject_name,
+                g.quarter, g.grade, g.school_year, g.updated_at,
+                u.full_name AS encoded_by_name
+         FROM grades g
+         JOIN students s   ON s.id = g.student_id
+         JOIN subjects sub ON sub.id = g.subject_id
+         LEFT JOIN users u ON u.id = g.encoded_by
+         WHERE s.section_id = ? AND g.school_year = ?
+         ORDER BY s.last_name, s.first_name, sub.subject_name, g.quarter"
+    );
+    $ovStmt->execute([$sectionFilter, SCHOOL_YEAR]);
+    $overviewGrades = $ovStmt->fetchAll();
 }
 
 require_once __DIR__ . '/../includes/sidebar.php';
@@ -72,6 +123,32 @@ document.addEventListener('DOMContentLoaded', function() {
         icon: 'error',
         title: 'Error',
         text: <?= json_encode($error) ?>,
+        confirmButtonColor: '#2563eb'
+    });
+});
+</script>
+<?php endif; ?>
+
+<?php if ($gradeImportResult): ?>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const r = <?= json_encode($gradeImportResult) ?>;
+    let html = `<div class="text-left text-sm space-y-1">
+        <p><span class="font-semibold text-green-600">${r.inserted}</span> grade(s) inserted</p>
+        <p><span class="font-semibold text-blue-600">${r.updated}</span> grade(s) updated</p>
+        <p><span class="font-semibold text-gray-500">${r.skipped}</span> row(s) skipped</p>`;
+    if (r.errors && r.errors.length > 0) {
+        html += `<details class="mt-3"><summary class="cursor-pointer text-red-500 font-medium">${r.errors.length} warning(s)</summary>
+            <ul class="mt-1 text-xs text-red-500 space-y-0.5 max-h-40 overflow-y-auto">`;
+        r.errors.forEach(e => { html += `<li>${e}</li>`; });
+        html += `</ul></details>`;
+    }
+    html += `</div>`;
+    Swal.fire({
+        ...swalDefaults,
+        icon: r.inserted + r.updated > 0 ? 'success' : 'warning',
+        title: 'Import Complete',
+        html: html,
         confirmButtonColor: '#2563eb'
     });
 });
@@ -113,11 +190,33 @@ document.addEventListener('DOMContentLoaded', function() {
             </select>
         </div>
         <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-search"></i> Load Students</button>
+        <button type="button" onclick="openModal('gradeImportModal')" class="btn btn-secondary btn-sm ml-auto">
+            <i class="fas fa-file-upload"></i> Bulk Import Grades
+        </button>
     </form>
 </div>
 
 <?php if (!empty($students)): ?>
-<div class="bg-white border border-gray-200 rounded-xl overflow-hidden">
+
+<!-- Stats bar -->
+<div class="flex items-center gap-3 mb-4">
+    <div class="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-4 py-2 text-sm">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 inline-block"></span>
+        <span class="font-semibold text-gray-800"><?= $gradedCount ?></span>
+        <span class="text-gray-500">graded</span>
+    </div>
+    <div class="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-4 py-2 text-sm">
+        <span class="w-2 h-2 rounded-full bg-amber-400 inline-block"></span>
+        <span class="font-semibold text-gray-800"><?= $ungradedCount ?></span>
+        <span class="text-gray-500">pending</span>
+    </div>
+    <div class="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-4 py-2 text-sm">
+        <span class="font-semibold text-gray-800"><?= count($students) ?></span>
+        <span class="text-gray-500">total students</span>
+    </div>
+</div>
+
+<div class="bg-white border border-gray-200 rounded-xl overflow-hidden mb-6">
     <form method="POST">
         <input type="hidden" name="action" value="save_grades">
         <input type="hidden" name="subject_id" value="<?= $subjectFilter ?>">
@@ -125,25 +224,32 @@ document.addEventListener('DOMContentLoaded', function() {
         <input type="hidden" name="school_year" value="<?= SCHOOL_YEAR ?>">
 
         <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-            <h3 class="text-sm font-semibold text-gray-900">
-                Enter Grades — <?= $quarterFilter ?>
-                <span class="text-gray-400 font-normal">(<?= count($students) ?> students)</span>
-            </h3>
+            <div>
+                <h3 class="text-sm font-semibold text-gray-900">
+                    Enter Grades
+                    <span class="ml-1 text-xs font-medium px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full"><?= $quarterFilter ?></span>
+                </h3>
+                <p class="text-xs text-gray-400 mt-0.5">Rows with an existing grade are pre-filled. Leave blank to skip.</p>
+            </div>
             <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-save"></i> Save All Grades</button>
         </div>
 
         <table class="steps-table">
             <thead>
                 <tr>
-                    <th>#</th>
+                    <th class="w-8">#</th>
                     <th>Student Name</th>
                     <th>LRN</th>
+                    <th>Status</th>
                     <th>Grade</th>
+                    <th>Last Encoded By</th>
                 </tr>
             </thead>
             <tbody>
-                <?php foreach ($students as $i => $s): ?>
-                    <tr>
+                <?php foreach ($students as $i => $s):
+                    $hasGrade = $s['existing_grade'] !== null;
+                ?>
+                    <tr class="<?= $hasGrade ? 'bg-emerald-50/40' : '' ?>">
                         <td class="text-gray-400"><?= $i + 1 ?></td>
                         <td class="font-medium">
                             <input type="hidden" name="student_id[]" value="<?= $s['id'] ?>">
@@ -151,8 +257,30 @@ document.addEventListener('DOMContentLoaded', function() {
                         </td>
                         <td class="text-xs font-mono text-gray-500"><?= sanitize($s['lrn']) ?></td>
                         <td>
+                            <?php if ($hasGrade): ?>
+                                <span class="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                                    <i class="fas fa-check-circle text-emerald-500"></i> Graded
+                                </span>
+                            <?php else: ?>
+                                <span class="inline-flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                                    <i class="fas fa-clock text-amber-500"></i> Pending
+                                </span>
+                            <?php endif; ?>
+                        </td>
+                        <td>
                             <input type="number" name="grade[]" class="form-input w-28" min="60" max="100" step="0.01"
-                                   value="<?= $s['existing_grade'] ?? '' ?>" placeholder="0.00">
+                                   value="<?= $hasGrade ? htmlspecialchars($s['existing_grade']) : '' ?>"
+                                   placeholder="<?= $hasGrade ? '' : '—' ?>">
+                        </td>
+                        <td class="text-xs text-gray-400">
+                            <?php if ($hasGrade && $s['encoded_by_name']): ?>
+                                <span class="text-gray-600"><?= sanitize($s['encoded_by_name']) ?></span>
+                                <?php if ($s['graded_at']): ?>
+                                    <br><span class="text-gray-400"><?= date('M j, Y', strtotime($s['graded_at'])) ?></span>
+                                <?php endif; ?>
+                            <?php else: ?>
+                                <span class="text-gray-300">—</span>
+                            <?php endif; ?>
                         </td>
                     </tr>
                 <?php endforeach; ?>
@@ -161,10 +289,201 @@ document.addEventListener('DOMContentLoaded', function() {
     </form>
 </div>
 <?php elseif ($sectionFilter && $subjectFilter && $quarterFilter): ?>
-    <div class="bg-white border border-gray-200 rounded-xl p-8 text-center">
+    <div class="bg-white border border-gray-200 rounded-xl p-8 text-center mb-6">
         <i class="fas fa-users text-gray-300 text-4xl mb-3"></i>
         <p class="text-gray-500">No students found in this section.</p>
     </div>
 <?php endif; ?>
+
+<?php if ($sectionFilter): ?>
+<!-- Current Grades Overview -->
+<div class="bg-white border border-gray-200 rounded-xl overflow-hidden">
+    <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+        <div>
+            <h3 class="text-sm font-semibold text-gray-900">Current Grades Overview</h3>
+            <p class="text-xs text-gray-400 mt-0.5">All recorded grades for this section — School Year <?= SCHOOL_YEAR ?></p>
+        </div>
+        <?php if (!empty($overviewGrades)): ?>
+            <span class="text-xs text-gray-400"><?= count($overviewGrades) ?> record(s)</span>
+        <?php endif; ?>
+    </div>
+
+    <?php if (!empty($overviewGrades)): ?>
+    <div class="overflow-x-auto">
+        <table class="steps-table">
+            <thead>
+                <tr>
+                    <th>Student</th>
+                    <th>LRN</th>
+                    <th>Subject</th>
+                    <th>Quarter</th>
+                    <th>Grade</th>
+                    <th>Remarks</th>
+                    <th>Encoded By</th>
+                    <th>Date</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($overviewGrades as $og):
+                    $g = (float)$og['grade'];
+                    if ($g >= 90)      { $rem = 'Outstanding';   $remClass = 'text-emerald-700 bg-emerald-50 border-emerald-200'; }
+                    elseif ($g >= 85)  { $rem = 'Very Satisfactory'; $remClass = 'text-blue-700 bg-blue-50 border-blue-200'; }
+                    elseif ($g >= 80)  { $rem = 'Satisfactory';  $remClass = 'text-indigo-700 bg-indigo-50 border-indigo-200'; }
+                    elseif ($g >= 75)  { $rem = 'Fairly Satisfactory'; $remClass = 'text-amber-700 bg-amber-50 border-amber-200'; }
+                    else               { $rem = 'Did Not Meet';  $remClass = 'text-red-700 bg-red-50 border-red-200'; }
+                ?>
+                    <tr>
+                        <td class="font-medium"><?= sanitize($og['last_name'] . ', ' . $og['first_name']) ?></td>
+                        <td class="text-xs font-mono text-gray-500"><?= sanitize($og['lrn']) ?></td>
+                        <td>
+                            <span class="font-medium text-gray-800"><?= sanitize($og['subject_name']) ?></span>
+                            <span class="text-xs text-gray-400 ml-1">(<?= sanitize($og['subject_code']) ?>)</span>
+                        </td>
+                        <td>
+                            <span class="text-xs font-semibold px-2 py-0.5 rounded bg-gray-100 text-gray-700"><?= $og['quarter'] ?></span>
+                        </td>
+                        <td>
+                            <span class="font-semibold text-gray-900"><?= number_format($g, 2) ?></span>
+                        </td>
+                        <td>
+                            <span class="inline-block text-xs font-medium px-2 py-0.5 rounded-full border <?= $remClass ?>">
+                                <?= $rem ?>
+                            </span>
+                        </td>
+                        <td class="text-xs text-gray-500"><?= $og['encoded_by_name'] ? sanitize($og['encoded_by_name']) : '—' ?></td>
+                        <td class="text-xs text-gray-400"><?= $og['updated_at'] ? date('M j, Y', strtotime($og['updated_at'])) : '—' ?></td>
+                    </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+    <?php else: ?>
+        <div class="px-6 py-10 text-center">
+            <i class="fas fa-clipboard-list text-gray-200 text-4xl mb-3"></i>
+            <p class="text-sm text-gray-400">No grades recorded for this section yet.</p>
+        </div>
+    <?php endif; ?>
+</div>
+<?php endif; ?>
+
+<!-- BULK IMPORT GRADES MODAL -->
+<div class="modal-overlay" id="gradeImportModal">
+    <div class="modal-content" style="max-width:540px;">
+        <div class="flex items-center justify-between mb-6">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-emerald-50 rounded-lg flex items-center justify-center modal-icon">
+                    <i class="fas fa-file-upload text-emerald-600"></i>
+                </div>
+                <div>
+                    <h3 class="text-base font-semibold text-gray-900">Bulk Import Grades</h3>
+                    <p class="text-xs text-gray-500">Upload a CSV file to add or update multiple grades</p>
+                </div>
+            </div>
+            <button onclick="closeModal('gradeImportModal')" class="modal-close"><i class="fas fa-times"></i></button>
+        </div>
+
+        <!-- Step 1: Download template -->
+        <div class="bg-blue-50 border border-blue-100 rounded-lg p-4 mb-5">
+            <h4 class="text-xs font-semibold text-blue-800 mb-2">Step 1: Download the Template</h4>
+            <p class="text-xs text-blue-700 mb-3">Download the CSV template, fill it with grade data, then save as CSV.</p>
+            <a href="<?= BASE_URL ?>students/download_grade_template.php" class="btn btn-primary btn-sm">
+                <i class="fas fa-download"></i> Download Template (.csv)
+            </a>
+        </div>
+
+        <!-- Format guide -->
+        <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-5">
+            <h4 class="text-xs font-semibold text-gray-700 mb-3">Required Columns</h4>
+            <div class="overflow-x-auto">
+                <table class="w-full text-xs">
+                    <thead>
+                        <tr class="text-left text-gray-400 border-b border-gray-200">
+                            <th class="pb-2 pr-3">Column</th>
+                            <th class="pb-2 pr-3">Required</th>
+                            <th class="pb-2">Example</th>
+                        </tr>
+                    </thead>
+                    <tbody class="text-gray-600">
+                        <tr class="border-b border-gray-100"><td class="py-1.5 pr-3 font-mono font-semibold">LRN</td><td class="pr-3"><span class="text-red-500">Yes</span></td><td>100100100001</td></tr>
+                        <tr class="border-b border-gray-100"><td class="py-1.5 pr-3 font-mono font-semibold">Subject Code</td><td class="pr-3"><span class="text-red-500">Yes</span></td><td>CORE04, STEM01</td></tr>
+                        <tr class="border-b border-gray-100"><td class="py-1.5 pr-3 font-mono font-semibold">Quarter</td><td class="pr-3"><span class="text-red-500">Yes</span></td><td>Q1 / Q2 / Q3 / Q4</td></tr>
+                        <tr class="border-b border-gray-100"><td class="py-1.5 pr-3 font-mono font-semibold">Grade</td><td class="pr-3"><span class="text-red-500">Yes</span></td><td>85.50 (60–100)</td></tr>
+                        <tr><td class="py-1.5 pr-3 font-mono font-semibold">School Year</td><td class="pr-3"><span class="text-red-500">Yes</span></td><td>2025-2026</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <p class="text-xs text-gray-400 mt-3"><i class="fas fa-info-circle mr-1"></i>Existing grades for the same student/subject/quarter/school year will be <strong>updated</strong>. New ones will be inserted.</p>
+        </div>
+
+        <!-- Step 2: Upload -->
+        <form method="POST" action="<?= BASE_URL ?>students/import_grades.php" enctype="multipart/form-data" id="gradeImportForm">
+            <div>
+                <h4 class="text-xs font-semibold text-gray-700 mb-2">Step 2: Upload Your File</h4>
+                <label class="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-200 border-dashed rounded-xl cursor-pointer hover:border-blue-400 hover:bg-blue-50/30 transition-colors" id="gradeDropZone">
+                    <div class="flex flex-col items-center justify-center pt-5 pb-6" id="gradeUploadPlaceholder">
+                        <i class="fas fa-cloud-upload-alt text-gray-300 text-2xl mb-2"></i>
+                        <p class="text-sm text-gray-500">Click to select or drag & drop</p>
+                        <p class="text-xs text-gray-400 mt-1">CSV files only</p>
+                    </div>
+                    <div class="flex items-center gap-3 hidden" id="gradeUploadFileInfo">
+                        <i class="fas fa-file-csv text-emerald-500 text-xl"></i>
+                        <div>
+                            <p class="text-sm font-medium text-gray-700" id="gradeUploadFileName"></p>
+                            <p class="text-xs text-gray-400" id="gradeUploadFileSize"></p>
+                        </div>
+                    </div>
+                    <input type="file" name="csv_file" class="hidden" accept=".csv,.txt" id="gradeCsvFileInput" required>
+                </label>
+            </div>
+
+            <div class="flex items-center justify-end gap-4 mt-6 pt-5 border-t border-gray-200">
+                <button type="button" onclick="closeModal('gradeImportModal')" class="btn btn-secondary">Cancel</button>
+                <button type="button" class="btn btn-primary" id="gradeImportSubmitBtn" disabled
+                        onclick="confirmSubmit(document.getElementById('gradeImportForm'), 'Import Grades?', 'Grades from the uploaded file will be inserted or updated. Rows with invalid LRN or Subject Code will be skipped.', 'Yes, import')">
+                    <i class="fas fa-upload"></i> Import Grades
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+const gradeCsvInput   = document.getElementById('gradeCsvFileInput');
+const gradeDropZone   = document.getElementById('gradeDropZone');
+const gradePlaceholder = document.getElementById('gradeUploadPlaceholder');
+const gradeFileInfo   = document.getElementById('gradeUploadFileInfo');
+const gradeFileName   = document.getElementById('gradeUploadFileName');
+const gradeFileSize   = document.getElementById('gradeUploadFileSize');
+const gradeImportBtn  = document.getElementById('gradeImportSubmitBtn');
+
+gradeCsvInput.addEventListener('change', function() {
+    if (this.files.length > 0) {
+        const f = this.files[0];
+        gradeFileName.textContent = f.name;
+        gradeFileSize.textContent = (f.size / 1024).toFixed(1) + ' KB';
+        gradePlaceholder.classList.add('hidden');
+        gradeFileInfo.classList.remove('hidden');
+        gradeImportBtn.disabled = false;
+        gradeImportBtn.classList.remove('opacity-50');
+    }
+});
+
+gradeDropZone.addEventListener('dragover', function(e) {
+    e.preventDefault();
+    this.classList.add('border-blue-400', 'bg-blue-50/30');
+});
+gradeDropZone.addEventListener('dragleave', function(e) {
+    e.preventDefault();
+    this.classList.remove('border-blue-400', 'bg-blue-50/30');
+});
+gradeDropZone.addEventListener('drop', function(e) {
+    e.preventDefault();
+    this.classList.remove('border-blue-400', 'bg-blue-50/30');
+    if (e.dataTransfer.files.length > 0) {
+        gradeCsvInput.files = e.dataTransfer.files;
+        gradeCsvInput.dispatchEvent(new Event('change'));
+    }
+});
+</script>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>
