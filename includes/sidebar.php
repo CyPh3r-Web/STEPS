@@ -84,18 +84,43 @@ function sidebarLinkClass($active) {
            class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors <?= sidebarLinkClass($currentPage === 'grades') ?>" title="Grades">
             <i class="fas fa-clipboard-list w-5 flex-shrink-0 text-center"></i><span class="sidebar-link-text">Grades</span>
         </a>
+        <!-- Work Immersion module removed -->
+        <?php endif; ?>
+        <?php if ($role === 'guidance'): ?>
+        <!-- Work Immersion module removed -->
         <?php endif; ?>
 
         <p class="sidebar-label text-xs font-semibold text-gray-400 uppercase tracking-wider mt-6 mb-3 px-3">Analysis</p>
 
+        <?php if ($role === 'admin' || $role === 'teacher'): ?>
         <a href="<?= BASE_URL ?>competency/index.php"
            class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors <?= sidebarLinkClass($currentDir === 'competency') ?>" title="Competency">
             <i class="fas fa-chart-bar w-5 flex-shrink-0 text-center"></i><span class="sidebar-link-text">Competency</span>
         </a>
-        <a href="<?= BASE_URL ?>career/index.php"
-           class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors <?= sidebarLinkClass($currentDir === 'career') ?>" title="Career Pathway">
-            <i class="fas fa-route w-5 flex-shrink-0 text-center"></i><span class="sidebar-link-text">Career Pathway</span>
-        </a>
+        <?php endif; ?>
+        <?php if ($role === 'admin' || $role === 'guidance'): ?>
+        <div class="sidebar-group">
+            <button type="button" onclick="toggleSidebarGroup('careerGroup')"
+                class="sidebar-link w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors <?= sidebarLinkClass($currentDir === 'career') ?>"
+                title="Career Pathway">
+                <i class="fas fa-route w-5 flex-shrink-0 text-center"></i>
+                <span class="sidebar-link-text flex-1 text-left">Career Pathway</span>
+                <i class="fas fa-chevron-down sidebar-link-text text-xs transition-transform duration-200" id="careerGroupChevron"></i>
+            </button>
+            <div id="careerGroup" class="pl-8 mt-1 space-y-0.5 <?= $currentDir === 'career' ? '' : 'hidden' ?>">
+                <a href="<?= BASE_URL ?>career/strand.php"
+                   class="sidebar-link flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors <?= sidebarLinkClass($currentPage === 'strand') ?>" title="Strand Recommendation">
+                    <i class="fas fa-graduation-cap w-4 flex-shrink-0 text-center text-xs"></i>
+                    <span class="sidebar-link-text">Strand Recommendation</span>
+                </a>
+                <a href="<?= BASE_URL ?>career/course.php"
+                   class="sidebar-link flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors <?= sidebarLinkClass($currentPage === 'course') ?>" title="Course Recommendation">
+                    <i class="fas fa-university w-4 flex-shrink-0 text-center text-xs"></i>
+                    <span class="sidebar-link-text">Course Recommendation</span>
+                </a>
+            </div>
+        </div>
+        <?php endif; ?>
 
         <p class="sidebar-label text-xs font-semibold text-gray-400 uppercase tracking-wider mt-6 mb-3 px-3">Reports</p>
 
@@ -103,10 +128,12 @@ function sidebarLinkClass($active) {
            class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors <?= sidebarLinkClass($currentDir === 'reports' && $currentPage === 'index') ?>" title="Diagnostic Reports">
             <i class="fas fa-file-alt w-5 flex-shrink-0 text-center"></i><span class="sidebar-link-text">Diagnostic Reports</span>
         </a>
+        <?php if ($role === 'admin' || $role === 'teacher'): ?>
         <a href="<?= BASE_URL ?>reports/class_performance.php"
            class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors <?= sidebarLinkClass($currentPage === 'class_performance') ?>" title="Class Performance">
             <i class="fas fa-chart-line w-5 flex-shrink-0 text-center"></i><span class="sidebar-link-text">Class Performance</span>
         </a>
+        <?php endif; ?>
 
         <?php if ($role === 'admin'): ?>
         <p class="sidebar-label text-xs font-semibold text-gray-400 uppercase tracking-wider mt-6 mb-3 px-3">System</p>
@@ -277,6 +304,21 @@ function sidebarLinkClass($active) {
 </div>
 
 <script>
+function toggleSidebarGroup(groupId) {
+    const el = document.getElementById(groupId);
+    const chevron = document.getElementById(groupId + 'Chevron');
+    if (!el) return;
+    el.classList.toggle('hidden');
+    if (chevron) chevron.style.transform = el.classList.contains('hidden') ? '' : 'rotate(180deg)';
+}
+document.addEventListener('DOMContentLoaded', function() {
+    const careerGroup = document.getElementById('careerGroup');
+    const chevron = document.getElementById('careerGroupChevron');
+    if (careerGroup && chevron) {
+        chevron.style.transform = careerGroup.classList.contains('hidden') ? '' : 'rotate(180deg)';
+    }
+});
+
 function togglePwdField(inputId, iconId) {
     const input = document.getElementById(inputId);
     const icon = document.getElementById(iconId);

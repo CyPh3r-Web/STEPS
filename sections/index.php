@@ -116,6 +116,10 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 <?php endif; ?>
 
+<?php
+$jhsCount = count(array_filter($sections, fn($s) => $s['grade_level'] >= 7 && $s['grade_level'] <= 10));
+$shsCount = count(array_filter($sections, fn($s) => $s['grade_level'] >= 11));
+?>
 <!-- Stats -->
 <div class="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6">
     <div class="stat-card" style="background:#f8fafc;">
@@ -127,23 +131,25 @@ document.addEventListener('DOMContentLoaded', function() {
         </div>
         <p class="text-3xl font-bold text-gray-800"><?= count($sections) ?></p>
     </div>
+    <div class="stat-card" style="background:#eff6ff;">
+        <div class="flex items-center justify-between mb-2">
+            <span class="text-sm font-medium text-gray-600">JHS Sections <span class="text-xs font-normal">(G7–G10)</span></span>
+            <div class="w-10 h-10 rounded-lg flex items-center justify-center" style="background:#dbeafe;">
+                <i class="fas fa-users" style="color:#1d4ed8;"></i>
+            </div>
+        </div>
+        <p class="text-3xl font-bold text-gray-800"><?= $jhsCount ?></p>
+        <span class="text-xs text-gray-400">Strand Recommendation</span>
+    </div>
     <div class="stat-card" style="background:#f0fdf4;">
         <div class="flex items-center justify-between mb-2">
-            <span class="text-sm font-medium text-gray-600">Grade 11</span>
+            <span class="text-sm font-medium text-gray-600">SHS Sections <span class="text-xs font-normal">(G11–G12)</span></span>
             <div class="w-10 h-10 rounded-lg flex items-center justify-center" style="background:#dcfce7;">
                 <i class="fas fa-users" style="color:#166534;"></i>
             </div>
         </div>
-        <p class="text-3xl font-bold text-gray-800"><?= count(array_filter($sections, fn($s) => $s['grade_level'] == 11)) ?></p>
-    </div>
-    <div class="stat-card" style="background:#fffbeb;">
-        <div class="flex items-center justify-between mb-2">
-            <span class="text-sm font-medium text-gray-600">Grade 12</span>
-            <div class="w-10 h-10 rounded-lg flex items-center justify-center" style="background:#fef3c7;">
-                <i class="fas fa-users" style="color:#92400e;"></i>
-            </div>
-        </div>
-        <p class="text-3xl font-bold text-gray-800"><?= count(array_filter($sections, fn($s) => $s['grade_level'] == 12)) ?></p>
+        <p class="text-3xl font-bold text-gray-800"><?= $shsCount ?></p>
+        <span class="text-xs text-gray-400">Course Recommendation</span>
     </div>
 </div>
 
@@ -163,7 +169,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 <?php foreach ($sections as $sec): ?>
                     <tr>
                         <td class="font-medium"><?= sanitize($sec['section_name']) ?></td>
-                        <td>Grade <?= $sec['grade_level'] ?></td>
+                        <td>
+                            Grade <?= $sec['grade_level'] ?>
+                            <?php if ($sec['grade_level'] >= 7 && $sec['grade_level'] <= 10): ?>
+                                <span class="badge badge-blue ml-1 text-[10px]">JHS</span>
+                            <?php else: ?>
+                                <span class="badge badge-green ml-1 text-[10px]">SHS</span>
+                            <?php endif; ?>
+                        </td>
                         <td><?php if ($sec['strand']): ?><span class="badge badge-blue"><?= sanitize($sec['strand']) ?></span><?php else: ?><span class="text-gray-400">—</span><?php endif; ?></td>
                         <td><?= sanitize($sec['adviser_name'] ?? '—') ?></td>
                         <td><span class="font-semibold"><?= $sec['student_count'] ?></span></td>
@@ -206,14 +219,23 @@ document.addEventListener('DOMContentLoaded', function() {
                 </div>
                 <div>
                     <label class="form-label">Grade Level <span class="text-red-500">*</span></label>
-                    <select name="grade_level" class="form-select" required>
-                        <option value="">Select</option>
-                        <option value="11" <?= ($openModal === 'add' && ($gradeLevel ?? '') == 11) ? 'selected' : '' ?>>Grade 11</option>
-                        <option value="12" <?= ($openModal === 'add' && ($gradeLevel ?? '') == 12) ? 'selected' : '' ?>>Grade 12</option>
+                    <select name="grade_level" id="add_grade_level" class="form-select" required onchange="toggleStrandField('add_grade_level','add_strand_wrap')">
+                        <option value="">Select Grade Level</option>
+                        <optgroup label="Junior High School (JHS)">
+                            <option value="7"  <?= ($openModal === 'add' && ($gradeLevel ?? '') == 7)  ? 'selected' : '' ?>>Grade 7</option>
+                            <option value="8"  <?= ($openModal === 'add' && ($gradeLevel ?? '') == 8)  ? 'selected' : '' ?>>Grade 8</option>
+                            <option value="9"  <?= ($openModal === 'add' && ($gradeLevel ?? '') == 9)  ? 'selected' : '' ?>>Grade 9</option>
+                            <option value="10" <?= ($openModal === 'add' && ($gradeLevel ?? '') == 10) ? 'selected' : '' ?>>Grade 10</option>
+                        </optgroup>
+                        <optgroup label="Senior High School (SHS)">
+                            <option value="11" <?= ($openModal === 'add' && ($gradeLevel ?? '') == 11) ? 'selected' : '' ?>>Grade 11</option>
+                            <option value="12" <?= ($openModal === 'add' && ($gradeLevel ?? '') == 12) ? 'selected' : '' ?>>Grade 12</option>
+                        </optgroup>
                     </select>
+                    <p class="text-xs text-gray-400 mt-1">G7–G10 sections are used for Strand Recommendations; G11–G12 for Course Recommendations.</p>
                 </div>
-                <div>
-                    <label class="form-label">Strand</label>
+                <div id="add_strand_wrap">
+                    <label class="form-label">Strand <span class="text-xs text-gray-400 font-normal">(SHS only)</span></label>
                     <select name="strand" class="form-select">
                         <option value="">No Strand</option>
                         <?php foreach ($strands as $st): ?>
@@ -263,13 +285,22 @@ document.addEventListener('DOMContentLoaded', function() {
                 </div>
                 <div>
                     <label class="form-label">Grade Level <span class="text-red-500">*</span></label>
-                    <select name="grade_level" id="edit_sec_grade" class="form-select" required>
-                        <option value="11">Grade 11</option>
-                        <option value="12">Grade 12</option>
+                    <select name="grade_level" id="edit_sec_grade" class="form-select" required onchange="toggleStrandField('edit_sec_grade','edit_strand_wrap')">
+                        <option value="">Select Grade Level</option>
+                        <optgroup label="Junior High School (JHS)">
+                            <option value="7">Grade 7</option>
+                            <option value="8">Grade 8</option>
+                            <option value="9">Grade 9</option>
+                            <option value="10">Grade 10</option>
+                        </optgroup>
+                        <optgroup label="Senior High School (SHS)">
+                            <option value="11">Grade 11</option>
+                            <option value="12">Grade 12</option>
+                        </optgroup>
                     </select>
                 </div>
-                <div>
-                    <label class="form-label">Strand</label>
+                <div id="edit_strand_wrap">
+                    <label class="form-label">Strand <span class="text-xs text-gray-400 font-normal">(SHS only)</span></label>
                     <select name="strand" id="edit_sec_strand" class="form-select">
                         <option value="">No Strand</option>
                         <?php foreach ($strands as $st): ?>
@@ -312,6 +343,19 @@ foreach ($sections as $sec) {
 ?>
 const sectionData = <?= json_encode($sectionDataMap) ?>;
 
+function toggleStrandField(selectId, wrapId) {
+    const grade = parseInt(document.getElementById(selectId).value);
+    const wrap  = document.getElementById(wrapId);
+    if (!wrap) return;
+    if (grade >= 7 && grade <= 10) {
+        wrap.style.display = 'none';
+        const sel = wrap.querySelector('select');
+        if (sel) sel.value = '';
+    } else {
+        wrap.style.display = '';
+    }
+}
+
 function loadEditSection(id) {
     const s = sectionData[id];
     if (!s) return;
@@ -321,14 +365,20 @@ function loadEditSection(id) {
     document.getElementById('edit_sec_strand').value = s.strand;
     document.getElementById('edit_sec_adviser').value = s.adviser_id;
     document.getElementById('edit_sec_sy').value = s.school_year;
+    toggleStrandField('edit_sec_grade', 'edit_strand_wrap');
     openModal('editSectionModal');
 }
 
-<?php if ($openModal === 'add'): ?>
-document.addEventListener('DOMContentLoaded', function() { openModal('addSectionModal'); });
-<?php elseif ($openModal === 'edit'): ?>
-document.addEventListener('DOMContentLoaded', function() { openModal('editSectionModal'); });
-<?php endif; ?>
+document.addEventListener('DOMContentLoaded', function() {
+    // Set initial state for add modal strand visibility
+    toggleStrandField('add_grade_level', 'add_strand_wrap');
+
+    <?php if ($openModal === 'add'): ?>
+    openModal('addSectionModal');
+    <?php elseif ($openModal === 'edit'): ?>
+    openModal('editSectionModal');
+    <?php endif; ?>
+});
 </script>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

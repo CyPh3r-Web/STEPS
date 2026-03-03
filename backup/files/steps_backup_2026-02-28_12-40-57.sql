@@ -1,5 +1,5 @@
 -- STEPS Database Backup
--- Date: February 27, 2026 01:12:29 PM
+-- Date: February 28, 2026 12:40:57 PM
 -- Database: steps_db
 
 SET FOREIGN_KEY_CHECKS = 0;
@@ -15,7 +15,7 @@ CREATE TABLE `activity_logs` (
   PRIMARY KEY (`id`),
   KEY `user_id` (`user_id`),
   CONSTRAINT `activity_logs_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB AUTO_INCREMENT=17 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=41 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 INSERT INTO `activity_logs` (`id`, `user_id`, `action`, `description`, `ip_address`, `created_at`) VALUES ('1', '1', 'logout', 'User logged out', '::1', '2026-02-27 20:25:35');
 INSERT INTO `activity_logs` (`id`, `user_id`, `action`, `description`, `ip_address`, `created_at`) VALUES ('2', '1', 'login', 'User logged in', '::1', '2026-02-27 20:25:42');
@@ -33,6 +33,30 @@ INSERT INTO `activity_logs` (`id`, `user_id`, `action`, `description`, `ip_addre
 INSERT INTO `activity_logs` (`id`, `user_id`, `action`, `description`, `ip_address`, `created_at`) VALUES ('14', '1', 'login', 'User logged in', '::1', '2026-02-27 21:10:33');
 INSERT INTO `activity_logs` (`id`, `user_id`, `action`, `description`, `ip_address`, `created_at`) VALUES ('15', '1', 'logout', 'User logged out', '::1', '2026-02-27 21:10:58');
 INSERT INTO `activity_logs` (`id`, `user_id`, `action`, `description`, `ip_address`, `created_at`) VALUES ('16', '1', 'login', 'User logged in', '::1', '2026-02-27 21:11:15');
+INSERT INTO `activity_logs` (`id`, `user_id`, `action`, `description`, `ip_address`, `created_at`) VALUES ('17', '1', 'backup', 'Created backup: steps_backup_2026-02-27_13-12-29.sql', '::1', '2026-02-27 21:12:29');
+INSERT INTO `activity_logs` (`id`, `user_id`, `action`, `description`, `ip_address`, `created_at`) VALUES ('18', '1', 'logout', 'User logged out', '::1', '2026-02-27 21:12:36');
+INSERT INTO `activity_logs` (`id`, `user_id`, `action`, `description`, `ip_address`, `created_at`) VALUES ('19', '1', 'login', 'User logged in', '::1', '2026-02-27 21:14:00');
+INSERT INTO `activity_logs` (`id`, `user_id`, `action`, `description`, `ip_address`, `created_at`) VALUES ('20', '1', 'bulk_import', 'Bulk import: 1 inserted, 2 skipped from student_import_template.csv', '::1', '2026-02-27 21:15:30');
+INSERT INTO `activity_logs` (`id`, `user_id`, `action`, `description`, `ip_address`, `created_at`) VALUES ('21', '1', 'bulk_import', 'Bulk import: 1 inserted, 2 skipped from student_import_template.csv', '::1', '2026-02-27 21:20:54');
+INSERT INTO `activity_logs` (`id`, `user_id`, `action`, `description`, `ip_address`, `created_at`) VALUES ('22', '1', 'bulk_import', 'Bulk import: 0 inserted, 3 skipped from student_import_template.csv', '::1', '2026-02-27 21:22:07');
+INSERT INTO `activity_logs` (`id`, `user_id`, `action`, `description`, `ip_address`, `created_at`) VALUES ('23', '1', 'bulk_import', 'Bulk import: 1 inserted, 2 skipped from student_import_template.csv', '::1', '2026-02-27 21:23:50');
+INSERT INTO `activity_logs` (`id`, `user_id`, `action`, `description`, `ip_address`, `created_at`) VALUES ('24', '1', 'bulk_import', 'Bulk import: 2 inserted, 1 skipped from student_import_template.csv', '::1', '2026-02-27 21:24:24');
+INSERT INTO `activity_logs` (`id`, `user_id`, `action`, `description`, `ip_address`, `created_at`) VALUES ('25', '1', 'bulk_import', 'Bulk import: 2 inserted, 1 skipped from student_import_template.csv', '::1', '2026-02-27 21:26:19');
+INSERT INTO `activity_logs` (`id`, `user_id`, `action`, `description`, `ip_address`, `created_at`) VALUES ('26', '1', 'bulk_import', 'Bulk import: 2 inserted, 1 skipped from student_import_template.csv', '::1', '2026-02-27 21:31:24');
+INSERT INTO `activity_logs` (`id`, `user_id`, `action`, `description`, `ip_address`, `created_at`) VALUES ('27', '1', 'bulk_import', 'Bulk import: 2 inserted, 1 skipped from student_import_template.csv', '::1', '2026-02-27 21:37:52');
+INSERT INTO `activity_logs` (`id`, `user_id`, `action`, `description`, `ip_address`, `created_at`) VALUES ('28', '1', 'login', 'User logged in', '::1', '2026-02-28 19:45:54');
+INSERT INTO `activity_logs` (`id`, `user_id`, `action`, `description`, `ip_address`, `created_at`) VALUES ('29', '1', 'logout', 'User logged out', '::1', '2026-02-28 19:46:07');
+INSERT INTO `activity_logs` (`id`, `user_id`, `action`, `description`, `ip_address`, `created_at`) VALUES ('30', '1', 'login', 'User logged in', '::1', '2026-02-28 19:46:25');
+INSERT INTO `activity_logs` (`id`, `user_id`, `action`, `description`, `ip_address`, `created_at`) VALUES ('31', '1', 'logout', 'User logged out', '::1', '2026-02-28 19:46:53');
+INSERT INTO `activity_logs` (`id`, `user_id`, `action`, `description`, `ip_address`, `created_at`) VALUES ('32', '7', 'login', 'User logged in', '::1', '2026-02-28 19:46:58');
+INSERT INTO `activity_logs` (`id`, `user_id`, `action`, `description`, `ip_address`, `created_at`) VALUES ('33', '7', 'bulk_import_grades', 'Bulk grade import: 0 inserted, 0 updated, 3 skipped from grade_import_template.csv', '::1', '2026-02-28 19:51:52');
+INSERT INTO `activity_logs` (`id`, `user_id`, `action`, `description`, `ip_address`, `created_at`) VALUES ('34', '7', 'bulk_import_grades', 'Bulk grade import: 3 inserted, 0 updated, 0 skipped from grade_import_template.csv', '::1', '2026-02-28 19:53:41');
+INSERT INTO `activity_logs` (`id`, `user_id`, `action`, `description`, `ip_address`, `created_at`) VALUES ('35', '7', 'logout', 'User logged out', '::1', '2026-02-28 20:18:25');
+INSERT INTO `activity_logs` (`id`, `user_id`, `action`, `description`, `ip_address`, `created_at`) VALUES ('36', '1', 'login', 'User logged in', '::1', '2026-02-28 20:18:30');
+INSERT INTO `activity_logs` (`id`, `user_id`, `action`, `description`, `ip_address`, `created_at`) VALUES ('37', '1', 'logout', 'User logged out', '::1', '2026-02-28 20:19:06');
+INSERT INTO `activity_logs` (`id`, `user_id`, `action`, `description`, `ip_address`, `created_at`) VALUES ('38', '8', 'login', 'User logged in', '::1', '2026-02-28 20:19:34');
+INSERT INTO `activity_logs` (`id`, `user_id`, `action`, `description`, `ip_address`, `created_at`) VALUES ('39', '8', 'logout', 'User logged out', '::1', '2026-02-28 20:40:49');
+INSERT INTO `activity_logs` (`id`, `user_id`, `action`, `description`, `ip_address`, `created_at`) VALUES ('40', '1', 'login', 'User logged in', '::1', '2026-02-28 20:40:53');
 
 DROP TABLE IF EXISTS `backup_logs`;
 CREATE TABLE `backup_logs` (
@@ -45,7 +69,9 @@ CREATE TABLE `backup_logs` (
   PRIMARY KEY (`id`),
   KEY `created_by` (`created_by`),
   CONSTRAINT `backup_logs_ibfk_1` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+INSERT INTO `backup_logs` (`id`, `backup_file`, `file_size`, `backup_type`, `created_by`, `created_at`) VALUES ('1', 'steps_backup_2026-02-27_13-12-29.sql', '53.54 KB', 'full', '1', '2026-02-27 21:12:29');
 
 DROP TABLE IF EXISTS `career_recommendations`;
 CREATE TABLE `career_recommendations` (
@@ -104,9 +130,10 @@ CREATE TABLE `diagnostic_reports` (
   CONSTRAINT `diagnostic_reports_ibfk_1` FOREIGN KEY (`student_id`) REFERENCES `students` (`id`) ON DELETE CASCADE,
   CONSTRAINT `diagnostic_reports_ibfk_2` FOREIGN KEY (`section_id`) REFERENCES `sections` (`id`) ON DELETE CASCADE,
   CONSTRAINT `diagnostic_reports_ibfk_3` FOREIGN KEY (`generated_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 INSERT INTO `diagnostic_reports` (`id`, `student_id`, `section_id`, `report_type`, `report_data`, `generated_by`, `school_year`, `created_at`) VALUES ('1', '6', NULL, 'individual', '{\"avg_grade\": \"91.333333\", \"competency\": {\"color\": \"emerald\", \"label\": \"Meets Expectations\", \"level\": \"proficient\"}, \"student_name\": \"Sofia Villanueva\", \"work_immersion\": \"93.00\", \"career_recommendation\": null}', '1', '2025-2026', '2026-02-27 19:57:39');
+INSERT INTO `diagnostic_reports` (`id`, `student_id`, `section_id`, `report_type`, `report_data`, `generated_by`, `school_year`, `created_at`) VALUES ('2', NULL, '1', 'section', '{\"date\": \"2026-02-28 12:33:00\", \"section\": \"Section A\", \"total_students\": 4}', '8', '2025-2026', '2026-02-28 20:33:00');
 
 DROP TABLE IF EXISTS `grades`;
 CREATE TABLE `grades` (
@@ -126,7 +153,7 @@ CREATE TABLE `grades` (
   CONSTRAINT `grades_ibfk_1` FOREIGN KEY (`student_id`) REFERENCES `students` (`id`) ON DELETE CASCADE,
   CONSTRAINT `grades_ibfk_2` FOREIGN KEY (`subject_id`) REFERENCES `subjects` (`id`) ON DELETE CASCADE,
   CONSTRAINT `grades_ibfk_3` FOREIGN KEY (`encoded_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB AUTO_INCREMENT=56 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=59 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 INSERT INTO `grades` (`id`, `student_id`, `subject_id`, `quarter`, `grade`, `school_year`, `encoded_by`, `created_at`, `updated_at`) VALUES ('1', '1', '4', 'Q1', '88.00', '2025-2026', '2', '2026-02-27 18:39:34', '2026-02-27 18:39:34');
 INSERT INTO `grades` (`id`, `student_id`, `subject_id`, `quarter`, `grade`, `school_year`, `encoded_by`, `created_at`, `updated_at`) VALUES ('2', '1', '4', 'Q2', '90.00', '2025-2026', '2', '2026-02-27 18:39:34', '2026-02-27 18:39:34');
@@ -183,6 +210,9 @@ INSERT INTO `grades` (`id`, `student_id`, `subject_id`, `quarter`, `grade`, `sch
 INSERT INTO `grades` (`id`, `student_id`, `subject_id`, `quarter`, `grade`, `school_year`, `encoded_by`, `created_at`, `updated_at`) VALUES ('53', '8', '23', 'Q1', '91.00', '2025-2026', '2', '2026-02-27 18:39:34', '2026-02-27 18:39:34');
 INSERT INTO `grades` (`id`, `student_id`, `subject_id`, `quarter`, `grade`, `school_year`, `encoded_by`, `created_at`, `updated_at`) VALUES ('54', '8', '23', 'Q2', '93.00', '2025-2026', '2', '2026-02-27 18:39:34', '2026-02-27 18:39:34');
 INSERT INTO `grades` (`id`, `student_id`, `subject_id`, `quarter`, `grade`, `school_year`, `encoded_by`, `created_at`, `updated_at`) VALUES ('55', '1', '12', 'Q1', '89.00', '2025-2026', '1', '2026-02-27 21:11:53', '2026-02-27 21:11:53');
+INSERT INTO `grades` (`id`, `student_id`, `subject_id`, `quarter`, `grade`, `school_year`, `encoded_by`, `created_at`, `updated_at`) VALUES ('56', '13', '4', 'Q1', '88.00', '2025-2026', '7', '2026-02-28 19:53:41', '2026-02-28 19:53:41');
+INSERT INTO `grades` (`id`, `student_id`, `subject_id`, `quarter`, `grade`, `school_year`, `encoded_by`, `created_at`, `updated_at`) VALUES ('57', '13', '4', 'Q2', '90.00', '2025-2026', '7', '2026-02-28 19:53:41', '2026-02-28 19:53:41');
+INSERT INTO `grades` (`id`, `student_id`, `subject_id`, `quarter`, `grade`, `school_year`, `encoded_by`, `created_at`, `updated_at`) VALUES ('58', '13', '21', 'Q1', '85.00', '2025-2026', '7', '2026-02-28 19:53:41', '2026-02-28 19:53:41');
 
 DROP TABLE IF EXISTS `import_logs`;
 CREATE TABLE `import_logs` (
@@ -197,7 +227,18 @@ CREATE TABLE `import_logs` (
   PRIMARY KEY (`id`),
   KEY `imported_by` (`imported_by`),
   CONSTRAINT `import_logs_ibfk_1` FOREIGN KEY (`imported_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+INSERT INTO `import_logs` (`id`, `file_name`, `total_rows`, `inserted`, `skipped`, `errors`, `imported_by`, `created_at`) VALUES ('1', 'student_import_template.csv', '3', '1', '2', '[\"Row 3: Missing required fields (LRN, name, gender, or school year), skipped.\",\"Row 4: Missing required fields (LRN, name, gender, or school year), skipped.\"]', '1', '2026-02-27 21:15:30');
+INSERT INTO `import_logs` (`id`, `file_name`, `total_rows`, `inserted`, `skipped`, `errors`, `imported_by`, `created_at`) VALUES ('2', 'student_import_template.csv', '3', '1', '2', '[\"Row 3: Missing required fields (LRN, name, gender, or school year), skipped.\",\"Row 4: Missing required fields (LRN, name, gender, or school year), skipped.\"]', '1', '2026-02-27 21:20:54');
+INSERT INTO `import_logs` (`id`, `file_name`, `total_rows`, `inserted`, `skipped`, `errors`, `imported_by`, `created_at`) VALUES ('3', 'student_import_template.csv', '3', '0', '3', '[\"Row 2 (100100000000): LRN already exists, skipped.\",\"Row 3 (176588000000): Invalid gender \\\"Femal\\\", skipped.\",\"Row 4: Missing required fields (LRN, name, gender, or school year), skipped.\"]', '1', '2026-02-27 21:22:07');
+INSERT INTO `import_logs` (`id`, `file_name`, `total_rows`, `inserted`, `skipped`, `errors`, `imported_by`, `created_at`) VALUES ('4', 'student_import_template.csv', '3', '1', '2', '[\"Row 3 (176588000000): Invalid gender \\\"Femal\\\", skipped.\",\"Row 4: Missing required fields (LRN, name, gender, or school year), skipped.\"]', '1', '2026-02-27 21:23:50');
+INSERT INTO `import_logs` (`id`, `file_name`, `total_rows`, `inserted`, `skipped`, `errors`, `imported_by`, `created_at`) VALUES ('5', 'student_import_template.csv', '3', '2', '1', '[\"Row 3 (176588000000): Strand \\\"humms\\\" not found, student added without strand.\",\"Row 4: Missing required fields (LRN, name, gender, or school year), skipped.\"]', '1', '2026-02-27 21:24:24');
+INSERT INTO `import_logs` (`id`, `file_name`, `total_rows`, `inserted`, `skipped`, `errors`, `imported_by`, `created_at`) VALUES ('6', 'student_import_template.csv', '3', '2', '1', '[\"Row 3 (176588429111): Strand \\\"humms\\\" not found, student added without strand.\",\"Row 4: Missing required fields (LRN, name, gender, or school year), skipped.\"]', '1', '2026-02-27 21:26:19');
+INSERT INTO `import_logs` (`id`, `file_name`, `total_rows`, `inserted`, `skipped`, `errors`, `imported_by`, `created_at`) VALUES ('7', 'student_import_template.csv', '3', '2', '1', '[\"Row 3 (176588429111): Strand \\\"humms\\\" not found, student added without strand.\",\"Row 4: Missing required fields (LRN, name, gender, or school year), skipped.\"]', '1', '2026-02-27 21:31:24');
+INSERT INTO `import_logs` (`id`, `file_name`, `total_rows`, `inserted`, `skipped`, `errors`, `imported_by`, `created_at`) VALUES ('8', 'student_import_template.csv', '3', '2', '1', '[\"Row 3 (176588429111): Strand \\\"humms\\\" not found, student added without strand.\",\"Row 4: Missing required fields (LRN, name, gender, or school year), skipped.\"]', '1', '2026-02-27 21:37:52');
+INSERT INTO `import_logs` (`id`, `file_name`, `total_rows`, `inserted`, `skipped`, `errors`, `imported_by`, `created_at`) VALUES ('9', 'grade_import_template.csv', '3', '0', '3', '[\"Row 2: LRN \\\"123456\\\" not found in the system, skipped.\",\"Row 3: LRN \\\"123456\\\" not found in the system, skipped.\",\"Row 4: LRN \\\"123456\\\" not found in the system, skipped.\"]', '7', '2026-02-28 19:51:52');
+INSERT INTO `import_logs` (`id`, `file_name`, `total_rows`, `inserted`, `skipped`, `errors`, `imported_by`, `created_at`) VALUES ('10', 'grade_import_template.csv', '3', '3', '0', NULL, '7', '2026-02-28 19:53:41');
 
 DROP TABLE IF EXISTS `sections`;
 CREATE TABLE `sections` (
@@ -306,7 +347,7 @@ CREATE TABLE `students` (
   KEY `strand_id` (`strand_id`),
   CONSTRAINT `students_ibfk_1` FOREIGN KEY (`section_id`) REFERENCES `sections` (`id`) ON DELETE SET NULL,
   CONSTRAINT `students_ibfk_2` FOREIGN KEY (`strand_id`) REFERENCES `strands` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB AUTO_INCREMENT=10 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=14 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 INSERT INTO `students` (`id`, `lrn`, `first_name`, `last_name`, `middle_name`, `gender`, `birthdate`, `section_id`, `strand_id`, `school_year`, `status`, `created_at`, `updated_at`) VALUES ('1', '100100100001', 'Juan', 'Dela Cruz', 'Santos', 'Male', '2008-03-15', '1', '1', '2025-2026', 'active', '2026-02-27 18:39:34', '2026-02-27 18:39:34');
 INSERT INTO `students` (`id`, `lrn`, `first_name`, `last_name`, `middle_name`, `gender`, `birthdate`, `section_id`, `strand_id`, `school_year`, `status`, `created_at`, `updated_at`) VALUES ('2', '100100100002', 'Maria', 'Garcia', 'Reyes', 'Female', '2008-06-21', '1', '1', '2025-2026', 'active', '2026-02-27 18:39:34', '2026-02-27 18:39:34');
@@ -317,6 +358,8 @@ INSERT INTO `students` (`id`, `lrn`, `first_name`, `last_name`, `middle_name`, `
 INSERT INTO `students` (`id`, `lrn`, `first_name`, `last_name`, `middle_name`, `gender`, `birthdate`, `section_id`, `strand_id`, `school_year`, `status`, `created_at`, `updated_at`) VALUES ('7', '100100100007', 'Miguel', 'Aquino', 'Santos', 'Male', '2007-08-30', '3', '3', '2025-2026', 'active', '2026-02-27 18:39:34', '2026-02-27 18:39:34');
 INSERT INTO `students` (`id`, `lrn`, `first_name`, `last_name`, `middle_name`, `gender`, `birthdate`, `section_id`, `strand_id`, `school_year`, `status`, `created_at`, `updated_at`) VALUES ('8', '100100100008', 'Isabella', 'Fernandez', 'Reyes', 'Female', '2008-02-14', '6', '1', '2025-2026', 'active', '2026-02-27 18:39:34', '2026-02-27 18:39:34');
 INSERT INTO `students` (`id`, `lrn`, `first_name`, `last_name`, `middle_name`, `gender`, `birthdate`, `section_id`, `strand_id`, `school_year`, `status`, `created_at`, `updated_at`) VALUES ('9', '0123456', 'Javy', 'Monsion', 'Daylusan', 'Male', '2026-02-27', '10', '1', '2025-2026', 'active', '2026-02-27 20:02:11', '2026-02-27 20:02:11');
+INSERT INTO `students` (`id`, `lrn`, `first_name`, `last_name`, `middle_name`, `gender`, `birthdate`, `section_id`, `strand_id`, `school_year`, `status`, `created_at`, `updated_at`) VALUES ('12', '100100100100', 'Romel', 'Dumam-ag', 'Pamplona', 'Male', '2008-03-15', '10', '1', '2025-2026', 'active', '2026-02-27 21:37:52', '2026-02-27 21:37:52');
+INSERT INTO `students` (`id`, `lrn`, `first_name`, `last_name`, `middle_name`, `gender`, `birthdate`, `section_id`, `strand_id`, `school_year`, `status`, `created_at`, `updated_at`) VALUES ('13', '176588429111', 'Kane Joy', 'Urbayo', 'Omero', 'Female', '2002-02-25', '1', NULL, '2025-2026', 'active', '2026-02-27 21:37:52', '2026-02-27 21:37:52');
 
 DROP TABLE IF EXISTS `subjects`;
 CREATE TABLE `subjects` (
@@ -400,7 +443,7 @@ CREATE TABLE `users` (
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `username` (`username`)
-) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=9 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 INSERT INTO `users` (`id`, `username`, `password`, `full_name`, `email`, `role`, `status`, `created_at`, `updated_at`) VALUES ('1', 'admin', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'System Administrator', 'admin@steps.edu', 'admin', 'active', '2026-02-27 18:39:34', '2026-02-27 18:39:34');
 INSERT INTO `users` (`id`, `username`, `password`, `full_name`, `email`, `role`, `status`, `created_at`, `updated_at`) VALUES ('2', 'teacher_santos', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Maria Santos', 'maria@steps.edu', 'teacher', 'active', '2026-02-27 18:39:34', '2026-02-27 18:39:34');
@@ -408,6 +451,8 @@ INSERT INTO `users` (`id`, `username`, `password`, `full_name`, `email`, `role`,
 INSERT INTO `users` (`id`, `username`, `password`, `full_name`, `email`, `role`, `status`, `created_at`, `updated_at`) VALUES ('4', 'teacher_cruz', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Ana Cruz', 'ana@steps.edu', 'teacher', 'inactive', '2026-02-27 18:39:34', '2026-02-27 19:54:07');
 INSERT INTO `users` (`id`, `username`, `password`, `full_name`, `email`, `role`, `status`, `created_at`, `updated_at`) VALUES ('5', 'guidance_reyes', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Jose Reyes', 'jose@steps.edu', 'guidance', 'active', '2026-02-27 18:39:34', '2026-02-27 18:39:34');
 INSERT INTO `users` (`id`, `username`, `password`, `full_name`, `email`, `role`, `status`, `created_at`, `updated_at`) VALUES ('6', 'guidance_mendoza', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Sofia Mendoza', 'sofia@steps.edu', 'guidance', 'active', '2026-02-27 18:39:34', '2026-02-27 18:39:34');
+INSERT INTO `users` (`id`, `username`, `password`, `full_name`, `email`, `role`, `status`, `created_at`, `updated_at`) VALUES ('7', 'teacher_monsion', '$2y$10$WijLqFlwa3azHgJxDMdabewjF6B6G5akfVuorFpQid12IBexLXUQe', 'Javidec Monsion', 'monsionjav@gmail.com', 'teacher', 'active', '2026-02-28 19:46:49', '2026-02-28 19:46:49');
+INSERT INTO `users` (`id`, `username`, `password`, `full_name`, `email`, `role`, `status`, `created_at`, `updated_at`) VALUES ('8', 'guidance_doe', '$2y$10$MVLf.4auBiGuQpScMAwJGucdFIgVsG2pg9nK0iymVsqTHkaiwykLy', 'John Doe', 'john@gmail.com', 'guidance', 'active', '2026-02-28 20:19:01', '2026-02-28 20:19:01');
 
 DROP TABLE IF EXISTS `work_immersion`;
 CREATE TABLE `work_immersion` (

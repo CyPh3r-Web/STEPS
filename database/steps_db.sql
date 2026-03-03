@@ -74,8 +74,9 @@ CREATE TABLE IF NOT EXISTS subjects (
     id INT AUTO_INCREMENT PRIMARY KEY,
     subject_code VARCHAR(20) NOT NULL,
     subject_name VARCHAR(100) NOT NULL,
+    grade_level INT DEFAULT NULL COMMENT 'NULL = all grade levels; 7-10 = JHS; 11-12 = SHS',
     strand_id INT,
-    subject_type ENUM('core', 'specialized', 'applied', 'immersion') NOT NULL DEFAULT 'core',
+    subject_type ENUM('core', 'specialized', 'applied', 'immersion', 'jhs_core', 'jhs_mapeh', 'jhs_tle', 'jhs_esp') NOT NULL DEFAULT 'core',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (strand_id) REFERENCES strands(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
@@ -100,21 +101,6 @@ CREATE TABLE IF NOT EXISTS grades (
 ) ENGINE=InnoDB;
 
 -- ============================================
--- WORK IMMERSION TABLE
--- ============================================
-CREATE TABLE IF NOT EXISTS work_immersion (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    student_id INT NOT NULL,
-    company_name VARCHAR(150),
-    rating DECIMAL(5,2) NOT NULL,
-    hours_completed INT DEFAULT 0,
-    performance_remarks TEXT,
-    school_year VARCHAR(20) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
-) ENGINE=InnoDB;
-
--- ============================================
 -- COMPETENCY RECORDS TABLE
 -- ============================================
 CREATE TABLE IF NOT EXISTS competency_records (
@@ -131,11 +117,37 @@ CREATE TABLE IF NOT EXISTS competency_records (
 ) ENGINE=InnoDB;
 
 -- ============================================
+-- NON-ACADEMIC INDICATORS TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS non_academic_indicators (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id INT NOT NULL UNIQUE,
+    skills TEXT,
+    hobbies TEXT,
+    family_background TEXT,
+    annual_income ENUM('below_100k', '100k_300k', '300k_500k', '500k_above') DEFAULT 'below_100k',
+    entrance_exam_score DECIMAL(5,2),
+    entrance_exam_date DATE,
+    updated_by INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
+    FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+-- ============================================
 -- CAREER RECOMMENDATIONS TABLE
 -- ============================================
 CREATE TABLE IF NOT EXISTS career_recommendations (
     id INT AUTO_INCREMENT PRIMARY KEY,
     student_id INT NOT NULL,
+    recommendation_type ENUM('strand', 'course') NOT NULL DEFAULT 'strand',
+    top_strand_1 VARCHAR(100),
+    top_strand_2 VARCHAR(100),
+    top_strand_3 VARCHAR(100),
+    top_course_1 VARCHAR(150),
+    top_course_2 VARCHAR(150),
+    top_course_3 VARCHAR(150),
     recommended_strand VARCHAR(100),
     recommended_courses TEXT,
     employability_score DECIMAL(5,2),
@@ -143,9 +155,11 @@ CREATE TABLE IF NOT EXISTS career_recommendations (
     strand_match TINYINT(1) DEFAULT 1,
     mismatch_remarks TEXT,
     career_pathways TEXT,
+    score_breakdown JSON,
     generated_by INT,
     school_year VARCHAR(20) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
     FOREIGN KEY (generated_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
@@ -257,70 +271,142 @@ INSERT INTO sections (section_name, grade_level, strand, adviser_id, school_year
 ('Section I', 12, 'GAS', 2, '2025-2026'),
 ('Section J', 12, 'TVL-ICT', 4, '2025-2026');
 
-INSERT INTO subjects (subject_code, subject_name, strand_id, subject_type) VALUES
--- Core Subjects (shared across all strands)
-('CORE01', 'Oral Communication', NULL, 'core'),
-('CORE02', 'Reading and Writing', NULL, 'core'),
-('CORE03', 'Komunikasyon at Pananaliksik', NULL, 'core'),
-('CORE04', 'General Mathematics', NULL, 'core'),
-('CORE05', 'Earth and Life Science', NULL, 'core'),
-('CORE06', 'Physical Science', NULL, 'core'),
-('CORE07', 'Personal Development', NULL, 'core'),
-('CORE08', 'Understanding Culture, Society, and Politics', NULL, 'core'),
-('CORE09', 'Introduction to Philosophy', NULL, 'core'),
-('CORE10', 'Physical Education and Health', NULL, 'core'),
-('CORE11', 'Media and Information Literacy', NULL, 'core'),
-('CORE12', '21st Century Literature from the Philippines and the World', NULL, 'core'),
-('CORE13', 'Contemporary Philippine Arts from the Regions', NULL, 'core'),
+-- ============================================
+-- JHS SUBJECTS (Grade 7 - Grade 10, DepEd K-12)
+-- subject_type reference:
+--   jhs_core  = Academic core subjects
+--   jhs_mapeh = Music, Arts, Physical Education, Health
+--   jhs_tle   = Technology & Livelihood Education
+--   jhs_esp   = Edukasyon sa Pagpapakatao
+-- ============================================
+INSERT INTO subjects (subject_code, subject_name, grade_level, strand_id, subject_type) VALUES
+
+-- ── GRADE 7 ──────────────────────────────────────────────────────────────────
+('G7-ENG',   'English 7',                            7,  NULL, 'jhs_core'),
+('G7-FIL',   'Filipino 7',                           7,  NULL, 'jhs_core'),
+('G7-MAT',   'Mathematics 7',                        7,  NULL, 'jhs_core'),
+('G7-SCI',   'Science 7',                            7,  NULL, 'jhs_core'),
+('G7-AP',    'Araling Panlipunan 7',                 7,  NULL, 'jhs_core'),
+('G7-ESP',   'Edukasyon sa Pagpapakatao 7',          7,  NULL, 'jhs_esp'),
+('G7-MAPEH', 'MAPEH 7',                              7,  NULL, 'jhs_mapeh'),
+('G7-TLE',   'Technology & Livelihood Education 7',  7,  NULL, 'jhs_tle'),
+
+-- ── GRADE 8 ──────────────────────────────────────────────────────────────────
+('G8-ENG',   'English 8',                            8,  NULL, 'jhs_core'),
+('G8-FIL',   'Filipino 8',                           8,  NULL, 'jhs_core'),
+('G8-MAT',   'Mathematics 8',                        8,  NULL, 'jhs_core'),
+('G8-SCI',   'Science 8',                            8,  NULL, 'jhs_core'),
+('G8-AP',    'Araling Panlipunan 8',                 8,  NULL, 'jhs_core'),
+('G8-ESP',   'Edukasyon sa Pagpapakatao 8',          8,  NULL, 'jhs_esp'),
+('G8-MAPEH', 'MAPEH 8',                              8,  NULL, 'jhs_mapeh'),
+('G8-TLE',   'Technology & Livelihood Education 8',  8,  NULL, 'jhs_tle'),
+
+-- ── GRADE 9 ──────────────────────────────────────────────────────────────────
+('G9-ENG',   'English 9',                            9,  NULL, 'jhs_core'),
+('G9-FIL',   'Filipino 9',                           9,  NULL, 'jhs_core'),
+('G9-MAT',   'Mathematics 9',                        9,  NULL, 'jhs_core'),
+('G9-SCI',   'Science 9',                            9,  NULL, 'jhs_core'),
+('G9-AP',    'Araling Panlipunan 9',                 9,  NULL, 'jhs_core'),
+('G9-ESP',   'Edukasyon sa Pagpapakatao 9',          9,  NULL, 'jhs_esp'),
+('G9-MAPEH', 'MAPEH 9',                              9,  NULL, 'jhs_mapeh'),
+('G9-TLE',   'Technology & Livelihood Education 9',  9,  NULL, 'jhs_tle'),
+
+-- ── GRADE 10 ─────────────────────────────────────────────────────────────────
+('G10-ENG',   'English 10',                           10, NULL, 'jhs_core'),
+('G10-FIL',   'Filipino 10',                          10, NULL, 'jhs_core'),
+('G10-MAT',   'Mathematics 10',                       10, NULL, 'jhs_core'),
+('G10-SCI',   'Science 10',                           10, NULL, 'jhs_core'),
+('G10-AP',    'Araling Panlipunan 10',                10, NULL, 'jhs_core'),
+('G10-ESP',   'Edukasyon sa Pagpapakatao 10',         10, NULL, 'jhs_esp'),
+('G10-MAPEH', 'MAPEH 10',                             10, NULL, 'jhs_mapeh'),
+('G10-TLE',   'Technology & Livelihood Education 10', 10, NULL, 'jhs_tle');
+
+-- ============================================
+-- SHS SUBJECTS (Grade 11 - Grade 12, DepEd K-12)
+-- ============================================
+INSERT INTO subjects (subject_code, subject_name, grade_level, strand_id, subject_type) VALUES
+-- Core Subjects (shared across all SHS strands)
+('CORE01', 'Oral Communication',                                          11, NULL, 'core'),
+('CORE02', 'Reading and Writing',                                         11, NULL, 'core'),
+('CORE03', 'Komunikasyon at Pananaliksik sa Wika at Kulturang Pilipino',  11, NULL, 'core'),
+('CORE04', 'General Mathematics',                                         11, NULL, 'core'),
+('CORE05', 'Earth and Life Science',                                      11, NULL, 'core'),
+('CORE06', 'Physical Science',                                            11, NULL, 'core'),
+('CORE07', 'Personal Development',                                        11, NULL, 'core'),
+('CORE08', 'Understanding Culture, Society, and Politics',                11, NULL, 'core'),
+('CORE09', 'Introduction to Philosophy',                                  11, NULL, 'core'),
+('CORE10', 'Physical Education and Health',                               11, NULL, 'core'),
+('CORE11', 'Media and Information Literacy',                              11, NULL, 'core'),
+('CORE12', '21st Century Literature from the Philippines and the World',  11, NULL, 'core'),
+('CORE13', 'Contemporary Philippine Arts from the Regions',               11, NULL, 'core'),
 -- Applied Subjects
-('APP01', 'English for Academic and Professional Purposes', NULL, 'applied'),
-('APP02', 'Practical Research 1', NULL, 'applied'),
-('APP03', 'Practical Research 2', NULL, 'applied'),
-('APP04', 'Filipino sa Piling Larangan', NULL, 'applied'),
-('APP05', 'Empowerment Technologies', NULL, 'applied'),
-('APP06', 'Entrepreneurship', NULL, 'applied'),
-('APP07', 'Inquiries, Investigations, and Immersion', NULL, 'applied'),
+('APP01', 'English for Academic and Professional Purposes', 12, NULL, 'applied'),
+('APP02', 'Practical Research 1',                          11, NULL, 'applied'),
+('APP03', 'Practical Research 2',                          12, NULL, 'applied'),
+('APP04', 'Filipino sa Piling Larangan',                   12, NULL, 'applied'),
+('APP05', 'Empowerment Technologies',                      11, NULL, 'applied'),
+('APP06', 'Entrepreneurship',                              12, NULL, 'applied'),
+('APP07', 'Inquiries, Investigations, and Immersion',      12, NULL, 'applied'),
 -- STEM Specialized Subjects
-('STEM01', 'Pre-Calculus', 1, 'specialized'),
-('STEM02', 'Basic Calculus', 1, 'specialized'),
-('STEM03', 'General Biology 1', 1, 'specialized'),
-('STEM04', 'General Biology 2', 1, 'specialized'),
-('STEM05', 'General Chemistry 1', 1, 'specialized'),
-('STEM06', 'General Chemistry 2', 1, 'specialized'),
-('STEM07', 'General Physics 1', 1, 'specialized'),
-('STEM08', 'General Physics 2', 1, 'specialized'),
-('STEM09', 'Research/Capstone Project', 1, 'specialized'),
+('STEM01', 'Pre-Calculus',              11, 1, 'specialized'),
+('STEM02', 'Basic Calculus',            12, 1, 'specialized'),
+('STEM03', 'General Biology 1',         11, 1, 'specialized'),
+('STEM04', 'General Biology 2',         12, 1, 'specialized'),
+('STEM05', 'General Chemistry 1',       11, 1, 'specialized'),
+('STEM06', 'General Chemistry 2',       12, 1, 'specialized'),
+('STEM07', 'General Physics 1',         11, 1, 'specialized'),
+('STEM08', 'General Physics 2',         12, 1, 'specialized'),
+('STEM09', 'Research/Capstone Project', 12, 1, 'specialized'),
 -- ABM Specialized Subjects
-('ABM01', 'Fundamentals of ABM 1', 2, 'specialized'),
-('ABM02', 'Fundamentals of ABM 2', 2, 'specialized'),
-('ABM03', 'Business Mathematics', 2, 'specialized'),
-('ABM04', 'Business Finance', 2, 'specialized'),
-('ABM05', 'Organization and Management', 2, 'specialized'),
-('ABM06', 'Principles of Marketing', 2, 'specialized'),
-('ABM07', 'Business Ethics and Social Responsibility', 2, 'specialized'),
-('ABM08', 'Applied Economics', 2, 'specialized'),
+('ABM01', 'Fundamentals of ABM 1',                    11, 2, 'specialized'),
+('ABM02', 'Fundamentals of ABM 2',                    12, 2, 'specialized'),
+('ABM03', 'Business Mathematics',                     11, 2, 'specialized'),
+('ABM04', 'Business Finance',                         12, 2, 'specialized'),
+('ABM05', 'Organization and Management',              11, 2, 'specialized'),
+('ABM06', 'Principles of Marketing',                  12, 2, 'specialized'),
+('ABM07', 'Business Ethics and Social Responsibility',12, 2, 'specialized'),
+('ABM08', 'Applied Economics',                        12, 2, 'specialized'),
 -- HUMSS Specialized Subjects
-('HUM01', 'Introduction to World Religions', 3, 'specialized'),
-('HUM02', 'Creative Writing', 3, 'specialized'),
-('HUM03', 'Creative Nonfiction', 3, 'specialized'),
-('HUM04', 'Trends, Networks, and Critical Thinking', 3, 'specialized'),
-('HUM05', 'Philippine Politics and Governance', 3, 'specialized'),
-('HUM06', 'Community Engagement', 3, 'specialized'),
-('HUM07', 'Disciplines and Ideas in Social Sciences', 3, 'specialized'),
+('HUM01', 'Introduction to World Religions and Belief Systems', 11, 3, 'specialized'),
+('HUM02', 'Creative Writing / Malikhaing Pagsulat',             11, 3, 'specialized'),
+('HUM03', 'Creative Nonfiction',                                12, 3, 'specialized'),
+('HUM04', 'Trends, Networks, and Critical Thinking',            12, 3, 'specialized'),
+('HUM05', 'Philippine Politics and Governance',                 12, 3, 'specialized'),
+('HUM06', 'Community Engagement, Solidarity, and Citizenship',  12, 3, 'specialized'),
+('HUM07', 'Disciplines and Ideas in the Social Sciences',       11, 3, 'specialized'),
 -- GAS Specialized Subjects
-('GAS01', 'Humanities 1', 4, 'specialized'),
-('GAS02', 'Humanities 2', 4, 'specialized'),
-('GAS03', 'Social Science 1', 4, 'specialized'),
-('GAS04', 'Applied Economics', 4, 'specialized'),
-('GAS05', 'Organization and Management', 4, 'specialized'),
-('GAS06', 'Disaster Readiness and Risk Reduction', 4, 'specialized'),
+('GAS01', 'Humanities 1',                       11, 4, 'specialized'),
+('GAS02', 'Humanities 2',                       12, 4, 'specialized'),
+('GAS03', 'Social Science 1',                   11, 4, 'specialized'),
+('GAS04', 'Applied Economics',                  12, 4, 'specialized'),
+('GAS05', 'Organization and Management',        11, 4, 'specialized'),
+('GAS06', 'Disaster Readiness and Risk Reduction', 12, 4, 'specialized'),
 -- TVL-ICT Specialized Subjects
-('ICT01', 'Computer Systems Servicing NC II', 5, 'specialized'),
-('ICT02', 'Computer Programming', 5, 'specialized'),
-('ICT03', 'Web Development', 5, 'specialized'),
-('ICT04', 'Illustration and Animation', 5, 'specialized'),
--- Work Immersion
-('WI101', 'Work Immersion', NULL, 'immersion');
+('ICT01', 'Computer Systems Servicing NC II', 11, 5, 'specialized'),
+('ICT02', 'Computer Programming (Java)',       11, 5, 'specialized'),
+('ICT03', 'Web Development',                  12, 5, 'specialized'),
+('ICT04', 'Illustration and Animation',        12, 5, 'specialized'),
+-- TVL-HE Specialized Subjects
+('HE01', 'Bread and Pastry Production NC II',        11, 6, 'specialized'),
+('HE02', 'Cookery NC II',                            11, 6, 'specialized'),
+('HE03', 'Housekeeping NC II',                       12, 6, 'specialized'),
+('HE04', 'Food and Beverage Services NC II',         12, 6, 'specialized'),
+-- TVL-IA Specialized Subjects
+('IA01', 'Electrical Installation and Maintenance NC II', 11, 7, 'specialized'),
+('IA02', 'Welding NC I',                                  11, 7, 'specialized'),
+('IA03', 'Carpentry NC II',                               12, 7, 'specialized'),
+('IA04', 'Automotive Servicing NC I',                     12, 7, 'specialized'),
+-- Sports Track Specialized Subjects
+('SPT01', 'Physical Fitness',                   11, 8, 'specialized'),
+('SPT02', 'Team Sports',                        11, 8, 'specialized'),
+('SPT03', 'Individual/Dual Sports',             12, 8, 'specialized'),
+('SPT04', 'Sports Officiating and Journalism',  12, 8, 'specialized'),
+-- Arts and Design Track Specialized Subjects
+('ART01', 'Drawing and Painting',               11, 9, 'specialized'),
+('ART02', 'Photography and Film',               11, 9, 'specialized'),
+('ART03', 'Graphic Design',                     12, 9, 'specialized'),
+('ART04', 'Creative Industry Immersion',        12, 9, 'specialized'),
+-- Work Immersion subject removed
 
 INSERT INTO students (lrn, first_name, last_name, middle_name, gender, birthdate, section_id, strand_id, school_year) VALUES
 -- Section A (G11 STEM)
@@ -378,16 +464,6 @@ INSERT INTO grades (student_id, subject_id, quarter, grade, school_year, encoded
 (8, 21, 'Q1', 93, '2025-2026', 2), (8, 21, 'Q2', 94, '2025-2026', 2),
 (8, 23, 'Q1', 91, '2025-2026', 2), (8, 23, 'Q2', 93, '2025-2026', 2);
 
-INSERT INTO work_immersion (student_id, company_name, rating, hours_completed, performance_remarks, school_year) VALUES
-(1, 'Tech Solutions Inc.', 88.5, 320, 'Good performance in technical tasks', '2025-2026'),
-(2, 'Tech Solutions Inc.', 75.0, 300, 'Needs improvement in initiative', '2025-2026'),
-(3, 'DataCore Systems', 70.5, 280, 'Below average performance', '2025-2026'),
-(4, 'BusinessFirst Corp.', 91.0, 320, 'Excellent business acumen', '2025-2026'),
-(5, 'BusinessFirst Corp.', 77.0, 310, 'Average performance', '2025-2026'),
-(6, 'Community Center', 93.0, 320, 'Outstanding communication skills', '2025-2026'),
-(7, 'Community Center', 76.0, 290, 'Satisfactory performance', '2025-2026'),
-(8, 'InnoTech Labs', 95.0, 320, 'Exceptional technical ability', '2025-2026');
-
 INSERT INTO strand_course_mapping (strand_id, course_name, career_pathway) VALUES
 (1, 'BS Computer Science', 'Software Development / IT Industry'),
 (1, 'BS Information Technology', 'Systems Administration / Web Development'),
@@ -416,3 +492,100 @@ INSERT INTO strand_course_mapping (strand_id, course_name, career_pathway) VALUE
 (8, 'BS Sports Science', 'Athletic Training / Fitness'),
 (9, 'BFA Fine Arts', 'Visual Arts / Gallery Management'),
 (9, 'BS Multimedia Arts', 'Digital Media / Animation / Graphic Design');
+
+-- ============================================
+-- TEST DATA — JHS Students (G7–G10)
+-- For testing the Strand Recommendation module
+-- ============================================
+-- Subject ID reference (JHS subjects inserted first):
+--   G7:  1=Eng7, 2=Fil7, 3=Math7, 4=Sci7, 5=AP7, 6=ESP7, 7=MAPEH7, 8=TLE7
+--   G8:  9=Eng8, 10=Fil8, 11=Math8, 12=Sci8, 13=AP8, 14=ESP8, 15=MAPEH8, 16=TLE8
+--   G9: 17=Eng9, 18=Fil9, 19=Math9, 20=Sci9, 21=AP9, 22=ESP9, 23=MAPEH9, 24=TLE9
+--  G10: 25=Eng10,26=Fil10,27=Math10,28=Sci10,29=AP10,30=ESP10,31=MAPEH10,32=TLE10
+-- Sections used: IDs 11–14 (new JHS sections added below)
+-- Students will be IDs 9–13
+-- ============================================
+
+-- JHS Sections (grade_level 7–10, no strand)
+INSERT INTO sections (section_name, grade_level, strand, adviser_id, school_year) VALUES
+('Rizal',    7,  NULL, 2, '2025-2026'),   -- id: 11
+('Bonifacio', 8,  NULL, 3, '2025-2026'),  -- id: 12
+('Mabini',   9,  NULL, 4, '2025-2026'),   -- id: 13
+('Aguinaldo',10, NULL, 2, '2025-2026');   -- id: 14
+
+-- JHS Test Students (strand_id = NULL for JHS)
+-- Profile: diverse academic strengths to produce varied strand recommendations
+INSERT INTO students (lrn, first_name, last_name, middle_name, gender, birthdate, section_id, strand_id, school_year) VALUES
+-- Strong in Math & Science → expected STEM recommendation
+('200200200001', 'Liam',    'Reyes',     'Cruz',    'Male',   '2012-04-10', 11, NULL, '2025-2026'),  -- id: 9  (G7)
+-- Strong in TLE & practical subjects → expected TVL recommendation
+('200200200002', 'Chloe',   'Santos',    'Lim',     'Female', '2011-07-22', 12, NULL, '2025-2026'),  -- id: 10 (G8)
+-- Strong in English, AP, ESP → expected HUMSS recommendation
+('200200200003', 'Marco',   'Villanueva','Bautista', 'Male',   '2010-09-15', 13, NULL, '2025-2026'),  -- id: 11 (G9)
+-- Balanced/good across all → expected GAS recommendation
+('200200200004', 'Sophia',  'Dela Torre','Ramos',   'Female', '2009-11-03', 14, NULL, '2025-2026'),  -- id: 12 (G10)
+-- Strong in AP, ESP, TLE → expected ABM or TVL recommendation
+('200200200005', 'Nathan',  'Buenaventura','Garcia', 'Male',  '2009-03-18', 14, NULL, '2025-2026');  -- id: 13 (G10)
+
+-- ── Grades: Liam Reyes (G7) — STEM profile (high Math & Science) ─────────────
+INSERT INTO grades (student_id, subject_id, quarter, grade, school_year, encoded_by) VALUES
+(9, 1,  'Q1', 85, '2025-2026', 2), (9, 1,  'Q2', 86, '2025-2026', 2), (9, 1,  'Q3', 87, '2025-2026', 2), (9, 1,  'Q4', 88, '2025-2026', 2),  -- English 7
+(9, 2,  'Q1', 82, '2025-2026', 2), (9, 2,  'Q2', 83, '2025-2026', 2), (9, 2,  'Q3', 84, '2025-2026', 2), (9, 2,  'Q4', 85, '2025-2026', 2),  -- Filipino 7
+(9, 3,  'Q1', 93, '2025-2026', 2), (9, 3,  'Q2', 95, '2025-2026', 2), (9, 3,  'Q3', 94, '2025-2026', 2), (9, 3,  'Q4', 96, '2025-2026', 2),  -- Math 7 ★
+(9, 4,  'Q1', 91, '2025-2026', 2), (9, 4,  'Q2', 92, '2025-2026', 2), (9, 4,  'Q3', 93, '2025-2026', 2), (9, 4,  'Q4', 95, '2025-2026', 2),  -- Science 7 ★
+(9, 5,  'Q1', 80, '2025-2026', 2), (9, 5,  'Q2', 81, '2025-2026', 2), (9, 5,  'Q3', 82, '2025-2026', 2), (9, 5,  'Q4', 83, '2025-2026', 2),  -- AP 7
+(9, 6,  'Q1', 84, '2025-2026', 2), (9, 6,  'Q2', 85, '2025-2026', 2), (9, 6,  'Q3', 86, '2025-2026', 2), (9, 6,  'Q4', 87, '2025-2026', 2),  -- ESP 7
+(9, 7,  'Q1', 80, '2025-2026', 2), (9, 7,  'Q2', 82, '2025-2026', 2), (9, 7,  'Q3', 83, '2025-2026', 2), (9, 7,  'Q4', 84, '2025-2026', 2),  -- MAPEH 7
+(9, 8,  'Q1', 78, '2025-2026', 2), (9, 8,  'Q2', 79, '2025-2026', 2), (9, 8,  'Q3', 80, '2025-2026', 2), (9, 8,  'Q4', 81, '2025-2026', 2);  -- TLE 7
+
+-- ── Grades: Chloe Santos (G8) — TVL profile (high TLE & MAPEH) ───────────────
+INSERT INTO grades (student_id, subject_id, quarter, grade, school_year, encoded_by) VALUES
+(10, 9,  'Q1', 80, '2025-2026', 2), (10, 9,  'Q2', 81, '2025-2026', 2), (10, 9,  'Q3', 82, '2025-2026', 2), (10, 9,  'Q4', 83, '2025-2026', 2),  -- English 8
+(10, 10, 'Q1', 83, '2025-2026', 2), (10, 10, 'Q2', 84, '2025-2026', 2), (10, 10, 'Q3', 85, '2025-2026', 2), (10, 10, 'Q4', 86, '2025-2026', 2),  -- Filipino 8
+(10, 11, 'Q1', 72, '2025-2026', 2), (10, 11, 'Q2', 74, '2025-2026', 2), (10, 11, 'Q3', 75, '2025-2026', 2), (10, 11, 'Q4', 76, '2025-2026', 2),  -- Math 8
+(10, 12, 'Q1', 74, '2025-2026', 2), (10, 12, 'Q2', 75, '2025-2026', 2), (10, 12, 'Q3', 76, '2025-2026', 2), (10, 12, 'Q4', 77, '2025-2026', 2),  -- Science 8
+(10, 13, 'Q1', 82, '2025-2026', 2), (10, 13, 'Q2', 83, '2025-2026', 2), (10, 13, 'Q3', 84, '2025-2026', 2), (10, 13, 'Q4', 85, '2025-2026', 2),  -- AP 8
+(10, 14, 'Q1', 85, '2025-2026', 2), (10, 14, 'Q2', 86, '2025-2026', 2), (10, 14, 'Q3', 87, '2025-2026', 2), (10, 14, 'Q4', 88, '2025-2026', 2),  -- ESP 8
+(10, 15, 'Q1', 90, '2025-2026', 2), (10, 15, 'Q2', 91, '2025-2026', 2), (10, 15, 'Q3', 92, '2025-2026', 2), (10, 15, 'Q4', 93, '2025-2026', 2),  -- MAPEH 8 ★
+(10, 16, 'Q1', 93, '2025-2026', 2), (10, 16, 'Q2', 94, '2025-2026', 2), (10, 16, 'Q3', 95, '2025-2026', 2), (10, 16, 'Q4', 96, '2025-2026', 2);  -- TLE 8 ★
+
+-- ── Grades: Marco Villanueva (G9) — HUMSS profile (high English, AP, ESP) ─────
+INSERT INTO grades (student_id, subject_id, quarter, grade, school_year, encoded_by) VALUES
+(11, 17, 'Q1', 92, '2025-2026', 2), (11, 17, 'Q2', 93, '2025-2026', 2), (11, 17, 'Q3', 94, '2025-2026', 2), (11, 17, 'Q4', 95, '2025-2026', 2),  -- English 9 ★
+(11, 18, 'Q1', 91, '2025-2026', 2), (11, 18, 'Q2', 92, '2025-2026', 2), (11, 18, 'Q3', 93, '2025-2026', 2), (11, 18, 'Q4', 94, '2025-2026', 2),  -- Filipino 9 ★
+(11, 19, 'Q1', 75, '2025-2026', 2), (11, 19, 'Q2', 76, '2025-2026', 2), (11, 19, 'Q3', 77, '2025-2026', 2), (11, 19, 'Q4', 78, '2025-2026', 2),  -- Math 9
+(11, 20, 'Q1', 76, '2025-2026', 2), (11, 20, 'Q2', 77, '2025-2026', 2), (11, 20, 'Q3', 78, '2025-2026', 2), (11, 20, 'Q4', 79, '2025-2026', 2),  -- Science 9
+(11, 21, 'Q1', 93, '2025-2026', 2), (11, 21, 'Q2', 94, '2025-2026', 2), (11, 21, 'Q3', 95, '2025-2026', 2), (11, 21, 'Q4', 96, '2025-2026', 2),  -- AP 9 ★
+(11, 22, 'Q1', 90, '2025-2026', 2), (11, 22, 'Q2', 91, '2025-2026', 2), (11, 22, 'Q3', 92, '2025-2026', 2), (11, 22, 'Q4', 93, '2025-2026', 2),  -- ESP 9 ★
+(11, 23, 'Q1', 85, '2025-2026', 2), (11, 23, 'Q2', 86, '2025-2026', 2), (11, 23, 'Q3', 87, '2025-2026', 2), (11, 23, 'Q4', 88, '2025-2026', 2),  -- MAPEH 9
+(11, 24, 'Q1', 80, '2025-2026', 2), (11, 24, 'Q2', 81, '2025-2026', 2), (11, 24, 'Q3', 82, '2025-2026', 2), (11, 24, 'Q4', 83, '2025-2026', 2);  -- TLE 9
+
+-- ── Grades: Sophia Dela Torre (G10) — GAS/balanced profile ───────────────────
+INSERT INTO grades (student_id, subject_id, quarter, grade, school_year, encoded_by) VALUES
+(12, 25, 'Q1', 85, '2025-2026', 2), (12, 25, 'Q2', 86, '2025-2026', 2), (12, 25, 'Q3', 87, '2025-2026', 2), (12, 25, 'Q4', 88, '2025-2026', 2),  -- English 10
+(12, 26, 'Q1', 84, '2025-2026', 2), (12, 26, 'Q2', 85, '2025-2026', 2), (12, 26, 'Q3', 86, '2025-2026', 2), (12, 26, 'Q4', 87, '2025-2026', 2),  -- Filipino 10
+(12, 27, 'Q1', 83, '2025-2026', 2), (12, 27, 'Q2', 84, '2025-2026', 2), (12, 27, 'Q3', 85, '2025-2026', 2), (12, 27, 'Q4', 86, '2025-2026', 2),  -- Math 10
+(12, 28, 'Q1', 84, '2025-2026', 2), (12, 28, 'Q2', 85, '2025-2026', 2), (12, 28, 'Q3', 86, '2025-2026', 2), (12, 28, 'Q4', 87, '2025-2026', 2),  -- Science 10
+(12, 29, 'Q1', 85, '2025-2026', 2), (12, 29, 'Q2', 86, '2025-2026', 2), (12, 29, 'Q3', 87, '2025-2026', 2), (12, 29, 'Q4', 88, '2025-2026', 2),  -- AP 10
+(12, 30, 'Q1', 86, '2025-2026', 2), (12, 30, 'Q2', 87, '2025-2026', 2), (12, 30, 'Q3', 88, '2025-2026', 2), (12, 30, 'Q4', 89, '2025-2026', 2),  -- ESP 10
+(12, 31, 'Q1', 83, '2025-2026', 2), (12, 31, 'Q2', 84, '2025-2026', 2), (12, 31, 'Q3', 85, '2025-2026', 2), (12, 31, 'Q4', 86, '2025-2026', 2),  -- MAPEH 10
+(12, 32, 'Q1', 84, '2025-2026', 2), (12, 32, 'Q2', 85, '2025-2026', 2), (12, 32, 'Q3', 86, '2025-2026', 2), (12, 32, 'Q4', 87, '2025-2026', 2);  -- TLE 10
+
+-- ── Grades: Nathan Buenaventura (G10) — ABM/TVL profile (high AP, TLE) ────────
+INSERT INTO grades (student_id, subject_id, quarter, grade, school_year, encoded_by) VALUES
+(13, 25, 'Q1', 80, '2025-2026', 2), (13, 25, 'Q2', 81, '2025-2026', 2), (13, 25, 'Q3', 82, '2025-2026', 2), (13, 25, 'Q4', 83, '2025-2026', 2),  -- English 10
+(13, 26, 'Q1', 82, '2025-2026', 2), (13, 26, 'Q2', 83, '2025-2026', 2), (13, 26, 'Q3', 84, '2025-2026', 2), (13, 26, 'Q4', 85, '2025-2026', 2),  -- Filipino 10
+(13, 27, 'Q1', 78, '2025-2026', 2), (13, 27, 'Q2', 79, '2025-2026', 2), (13, 27, 'Q3', 80, '2025-2026', 2), (13, 27, 'Q4', 81, '2025-2026', 2),  -- Math 10
+(13, 28, 'Q1', 76, '2025-2026', 2), (13, 28, 'Q2', 77, '2025-2026', 2), (13, 28, 'Q3', 78, '2025-2026', 2), (13, 28, 'Q4', 79, '2025-2026', 2),  -- Science 10
+(13, 29, 'Q1', 89, '2025-2026', 2), (13, 29, 'Q2', 90, '2025-2026', 2), (13, 29, 'Q3', 91, '2025-2026', 2), (13, 29, 'Q4', 92, '2025-2026', 2),  -- AP 10 ★
+(13, 30, 'Q1', 87, '2025-2026', 2), (13, 30, 'Q2', 88, '2025-2026', 2), (13, 30, 'Q3', 89, '2025-2026', 2), (13, 30, 'Q4', 90, '2025-2026', 2),  -- ESP 10 ★
+(13, 31, 'Q1', 82, '2025-2026', 2), (13, 31, 'Q2', 83, '2025-2026', 2), (13, 31, 'Q3', 84, '2025-2026', 2), (13, 31, 'Q4', 85, '2025-2026', 2),  -- MAPEH 10
+(13, 32, 'Q1', 92, '2025-2026', 2), (13, 32, 'Q2', 93, '2025-2026', 2), (13, 32, 'Q3', 94, '2025-2026', 2), (13, 32, 'Q4', 95, '2025-2026', 2);  -- TLE 10 ★
+
+-- Non-academic indicators for JHS test students
+INSERT INTO non_academic_indicators (student_id, skills, hobbies, family_background, annual_income, entrance_exam_score) VALUES
+(9,  'coding, robotics, math problem solving',         'science fair, programming, gadgets',            'father is an engineer, mother is a nurse',               '300k_500k',  88.50),
+(10, 'cooking, sewing, handicrafts',                   'baking, crafts, cooking experiments, gardening', 'family runs a small eatery, mother is a dressmaker',     '100k_300k',  76.00),
+(11, 'creative writing, public speaking, debating',    'reading, journalism, theater, social media',     'parents are both teachers, community-oriented family',   '300k_500k',  85.00),
+(12, 'drawing, music, research, organizing',           'painting, playing guitar, reading, volunteering','parents have mixed occupations, well-rounded background', '100k_300k',  80.00),
+(13, 'selling, negotiating, organizing events',        'business, trading, basketball, cooking',         'family has a small business, father is an OFW',          '100k_300k',  79.50);

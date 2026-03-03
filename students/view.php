@@ -34,10 +34,6 @@ $avgStmt = $pdo->prepare("SELECT AVG(grade) as avg_grade FROM grades WHERE stude
 $avgStmt->execute([$id]);
 $avgGrade = $avgStmt->fetch()['avg_grade'] ?? 0;
 
-$wiStmt = $pdo->prepare("SELECT * FROM work_immersion WHERE student_id = ? ORDER BY school_year DESC LIMIT 1");
-$wiStmt->execute([$id]);
-$workImmersion = $wiStmt->fetch();
-
 $crStmt = $pdo->prepare("SELECT * FROM career_recommendations WHERE student_id = ? ORDER BY created_at DESC LIMIT 1");
 $crStmt->execute([$id]);
 $careerRec = $crStmt->fetch();
@@ -137,15 +133,6 @@ require_once __DIR__ . '/../includes/sidebar.php';
             </div>
         </div>
         <p class="text-3xl font-bold text-gray-800"><?= formatNumber($avgGrade) ?></p>
-    </div>
-    <div class="stat-card" style="background:#fffbeb;">
-        <div class="flex items-center justify-between mb-2">
-            <span class="text-sm font-medium text-gray-600">Work Immersion Rating</span>
-            <div class="w-10 h-10 rounded-lg flex items-center justify-center" style="background:#fef3c7;">
-                <i class="fas fa-briefcase" style="color:#92400e;"></i>
-            </div>
-        </div>
-        <p class="text-3xl font-bold text-gray-800"><?= $workImmersion ? formatNumber($workImmersion['rating']) : 'N/A' ?></p>
     </div>
     <div class="stat-card" style="background:#f0fdf4;">
         <div class="flex items-center justify-between mb-2">

@@ -10,7 +10,6 @@ $students = $pdo->query("SELECT s.id, s.first_name, s.last_name, s.lrn, sec.sect
 
 $student = null;
 $grades = [];
-$workImmersion = null;
 $careerRec = null;
 
 if ($studentId) {
@@ -28,10 +27,6 @@ if ($studentId) {
         $gradeStmt->execute([$studentId]);
         $grades = $gradeStmt->fetchAll();
 
-        $wiStmt = $pdo->prepare("SELECT * FROM work_immersion WHERE student_id = ? ORDER BY school_year DESC LIMIT 1");
-        $wiStmt->execute([$studentId]);
-        $workImmersion = $wiStmt->fetch();
-
         $crStmt = $pdo->prepare("SELECT * FROM career_recommendations WHERE student_id = ? ORDER BY created_at DESC LIMIT 1");
         $crStmt->execute([$studentId]);
         $careerRec = $crStmt->fetch();
@@ -45,7 +40,6 @@ if ($studentId) {
             'student_name' => $student['first_name'] . ' ' . $student['last_name'],
             'avg_grade' => $avgGrade,
             'competency' => getCompetencyLevel($avgGrade),
-            'work_immersion' => $workImmersion ? $workImmersion['rating'] : null,
             'career_recommendation' => $careerRec ? $careerRec['recommended_strand'] : null
         ]);
 
@@ -159,19 +153,6 @@ require_once __DIR__ . '/../includes/sidebar.php';
                 </tr>
             </tfoot>
         </table>
-
-        <!-- Work Immersion -->
-        <h4 class="text-sm font-semibold text-gray-900 mb-3 pb-2 border-b border-gray-100">Work Immersion</h4>
-        <?php if ($workImmersion): ?>
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                <div><p class="text-xs text-gray-400">Company</p><p class="text-sm font-medium"><?= sanitize($workImmersion['company_name']) ?></p></div>
-                <div><p class="text-xs text-gray-400">Rating</p><p class="text-sm font-bold"><?= formatNumber($workImmersion['rating']) ?></p></div>
-                <div><p class="text-xs text-gray-400">Hours</p><p class="text-sm font-medium"><?= $workImmersion['hours_completed'] ?> hrs</p></div>
-                <div><p class="text-xs text-gray-400">Remarks</p><p class="text-sm"><?= sanitize($workImmersion['performance_remarks'] ?? 'N/A') ?></p></div>
-            </div>
-        <?php else: ?>
-            <p class="text-sm text-gray-400 mb-6">No work immersion data available.</p>
-        <?php endif; ?>
 
         <!-- Employability & Career -->
         <?php if ($careerRec): ?>
