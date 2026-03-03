@@ -26,7 +26,7 @@ $sectionPerf->execute($sectionParams);
 $sectionPerformance = $sectionPerf->fetchAll();
 
 // Subject performance
-$subQuery = "SELECT sub.subject_name, sub.subject_code,
+$subQuery = "SELECT sub.id as subject_id, sub.subject_name, sub.subject_code,
     AVG(g.grade) as avg_grade,
     COUNT(DISTINCT g.student_id) as student_count,
     SUM(CASE WHEN g.grade < 75 THEN 1 ELSE 0 END) as weak_count,
@@ -162,9 +162,45 @@ require_once __DIR__ . '/../includes/sidebar.php';
                         <td class="text-xs font-mono"><?= sanitize($sp['subject_code']) ?></td>
                         <td><?= $sp['student_count'] ?></td>
                         <td class="font-semibold"><?= formatNumber($sp['avg_grade']) ?></td>
-                        <td><span class="text-red-600 font-medium"><?= $sp['weak_count'] ?></span></td>
-                        <td><span class="text-amber-600 font-medium"><?= $sp['at_risk_count'] ?></span></td>
-                        <td><span class="text-emerald-600 font-medium"><?= $sp['prof_count'] ?></span></td>
+                        <td>
+                            <?php if ($sp['weak_count'] > 0): ?>
+                                <button type="button"
+                                        class="text-red-600 font-medium underline-offset-2 hover:underline"
+                                        data-subject-name="<?= htmlspecialchars($sp['subject_name'], ENT_QUOTES, 'UTF-8') ?>"
+                                        data-subject-code="<?= htmlspecialchars($sp['subject_code'], ENT_QUOTES, 'UTF-8') ?>"
+                                        onclick="loadSubjectStudents(this, <?= (int)$sp['subject_id'] ?>, 'weak')">
+                                    <?= $sp['weak_count'] ?>
+                                </button>
+                            <?php else: ?>
+                                <span class="text-red-600 font-medium"><?= $sp['weak_count'] ?></span>
+                            <?php endif; ?>
+                        </td>
+                        <td>
+                            <?php if ($sp['at_risk_count'] > 0): ?>
+                                <button type="button"
+                                        class="text-amber-600 font-medium underline-offset-2 hover:underline"
+                                        data-subject-name="<?= htmlspecialchars($sp['subject_name'], ENT_QUOTES, 'UTF-8') ?>"
+                                        data-subject-code="<?= htmlspecialchars($sp['subject_code'], ENT_QUOTES, 'UTF-8') ?>"
+                                        onclick="loadSubjectStudents(this, <?= (int)$sp['subject_id'] ?>, 'at_risk')">
+                                    <?= $sp['at_risk_count'] ?>
+                                </button>
+                            <?php else: ?>
+                                <span class="text-amber-600 font-medium"><?= $sp['at_risk_count'] ?></span>
+                            <?php endif; ?>
+                        </td>
+                        <td>
+                            <?php if ($sp['prof_count'] > 0): ?>
+                                <button type="button"
+                                        class="text-emerald-600 font-medium underline-offset-2 hover:underline"
+                                        data-subject-name="<?= htmlspecialchars($sp['subject_name'], ENT_QUOTES, 'UTF-8') ?>"
+                                        data-subject-code="<?= htmlspecialchars($sp['subject_code'], ENT_QUOTES, 'UTF-8') ?>"
+                                        onclick="loadSubjectStudents(this, <?= (int)$sp['subject_id'] ?>, 'proficient')">
+                                    <?= $sp['prof_count'] ?>
+                                </button>
+                            <?php else: ?>
+                                <span class="text-emerald-600 font-medium"><?= $sp['prof_count'] ?></span>
+                            <?php endif; ?>
+                        </td>
                         <td><span class="badge badge-<?= $comp['color'] === 'emerald' ? 'green' : $comp['color'] ?>"><?= $comp['label'] ?></span></td>
                     </tr>
                 <?php endforeach; ?>
@@ -175,5 +211,83 @@ require_once __DIR__ . '/../includes/sidebar.php';
         </table>
     </div>
 </div>
+
+<!-- Subject Students Modal -->
+<div class="modal-overlay" id="subjectStudentsModal">
+    <div class="modal-content" style="max-width:720px;">
+        <div class="flex items-center justify-between mb-6">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center modal-icon">
+                    <i class="fas fa-users text-blue-600"></i>
+                </div>
+                <div>
+                    <h3 class="text-base font-semibold text-gray-900" id="subjectStudentsTitle">Students</h3>
+                    <p class="text-xs text-gray-500" id="subjectStudentsSubtitle"></p>
+                </div>
+            </div>
+            <button type="button" onclick="closeModal('subjectStudentsModal')" class="modal-close">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <div id="subjectStudentsBody" class="max-h-96 overflow-y-auto text-sm text-gray-700">
+            <div class="flex items-center gap-2 text-gray-400">
+                <i class="fas fa-circle-notch fa-spin"></i>
+                <span>Loading students...</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function loadSubjectStudents(triggerEl, subjectId, category) {
+    const titleEl = document.getElementById('subjectStudentsTitle');
+    const subtitleEl = document.getElementById('subjectStudentsSubtitle');
+    const bodyEl = document.getElementById('subjectStudentsBody');
+
+    if (!titleEl || !subtitleEl || !bodyEl) return;
+
+    const categoryLabels = {
+        weak: 'Weak (&lt;75)',
+        at_risk: 'At Risk (75-79)',
+        proficient: 'Proficient (80+)'
+    };
+
+    const subjectName = triggerEl?.dataset.subjectName || '';
+    const subjectCode = triggerEl?.dataset.subjectCode || '';
+
+    titleEl.textContent = subjectName + ' (' + subjectCode + ')';
+    subtitleEl.innerHTML = 'Students in category: <span class="font-semibold">' + (categoryLabels[category] || category) + '</span>';
+
+    bodyEl.innerHTML = '<div class="flex items-center gap-2 text-gray-400"><i class="fas fa-circle-notch fa-spin"></i><span>Loading students...</span></div>';
+
+    openModal('subjectStudentsModal');
+
+    const sectionId = <?= json_encode($sectionFilter) ?>;
+    const params = new URLSearchParams({
+        subject_id: subjectId,
+        category: category
+    });
+    if (sectionId) {
+        params.append('section', sectionId);
+    }
+
+    fetch('<?= BASE_URL ?>reports/class_performance_students.php?' + params.toString(), {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.text();
+        })
+        .then(html => {
+            bodyEl.innerHTML = html;
+        })
+        .catch(() => {
+            bodyEl.innerHTML = '<p class="text-red-500 text-sm">Unable to load students right now. Please try again later.</p>';
+        });
+}
+</script>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>
