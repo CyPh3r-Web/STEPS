@@ -168,7 +168,7 @@ function sidebarLinkClass($active) {
 
 <div id="sidebar-overlay" class="fixed inset-0 bg-black/30 z-20 hidden lg:hidden" onclick="toggleSidebar()"></div>
 
-<div id="main-wrapper" class="main-content-area flex-1 min-h-screen transition-[margin] duration-300">
+<div id="main-wrapper" class="main-content-area flex-1 min-h-screen flex flex-col transition-[margin] duration-300">
     <header class="bg-white border-b border-gray-200 sticky top-0 z-10">
         <div class="flex items-center justify-between px-6 py-4">
             <div class="flex items-center gap-4">
@@ -250,7 +250,7 @@ function sidebarLinkClass($active) {
         </div>
     </header>
 
-    <main class="p-6">
+    <main class="p-6 flex-1">
 
 <!-- CHANGE PASSWORD MODAL -->
 <div class="modal-overlay" id="changePasswordModal">
