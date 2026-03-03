@@ -59,11 +59,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <script>
         (function() {
             var t = localStorage.getItem('steps_theme') || 'blue';
+            var m = localStorage.getItem('steps_mode') || 'light';
             document.documentElement.setAttribute('data-theme', t);
+            document.documentElement.setAttribute('data-mode', m);
         })();
     </script>
 </head>
 <body class="font-poppins login-container">
+    <button type="button" id="modeToggle" onclick="toggleMode()" class="mode-toggle-btn login-mode-btn fixed top-4 right-4 w-10 h-10 rounded-xl flex items-center justify-center z-10 bg-white/80 hover:bg-white border border-gray-200/80 text-gray-600 hover:text-gray-800 transition-colors" title="Toggle dark mode">
+        <i class="fas fa-moon" id="modeIcon"></i>
+    </button>
     <div class="login-bg" aria-hidden="true"></div>
     <div class="login-card">
         <div class="text-center mb-8">
@@ -100,6 +105,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
 
     <script>
+        function toggleMode() {
+            var el = document.documentElement;
+            var current = el.getAttribute('data-mode') || 'light';
+            var next = current === 'light' ? 'dark' : 'light';
+            el.setAttribute('data-mode', next);
+            localStorage.setItem('steps_mode', next);
+            var icon = document.getElementById('modeIcon');
+            if (icon) {
+                icon.classList.remove('fa-moon', 'fa-sun');
+                icon.classList.add(next === 'dark' ? 'fa-sun' : 'fa-moon');
+            }
+        }
+        (function initModeIcon() {
+            var m = localStorage.getItem('steps_mode') || 'light';
+            var icon = document.getElementById('modeIcon');
+            if (icon) {
+                icon.classList.remove('fa-moon', 'fa-sun');
+                icon.classList.add(m === 'dark' ? 'fa-sun' : 'fa-moon');
+            }
+        })();
         function togglePassword() {
             const pwd = document.getElementById('password');
             const icon = document.getElementById('toggleIcon');

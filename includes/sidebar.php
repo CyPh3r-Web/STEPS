@@ -186,6 +186,10 @@ function sidebarLinkClass($active) {
             <div class="flex items-center gap-2">
                 <span class="text-xs text-gray-400 hidden sm:inline mr-2"><?= date('F d, Y') ?></span>
 
+                <!-- Light/Dark Mode Toggle -->
+                <button type="button" id="modeToggle" onclick="toggleMode()" class="mode-toggle-btn w-9 h-9 rounded-lg flex items-center justify-center transition-colors" title="Toggle dark mode">
+                    <i class="fas fa-moon text-gray-500 hover:text-gray-700" id="modeIcon"></i>
+                </button>
                 <!-- Theme Picker -->
                 <div class="theme-picker">
                     <button class="theme-picker-btn" onclick="toggleThemeDropdown()" title="Change Theme">

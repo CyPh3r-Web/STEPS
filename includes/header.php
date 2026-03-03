@@ -8,7 +8,7 @@ $currentDir = basename(dirname($_SERVER['PHP_SELF']));
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <script>(function(){var t=localStorage.getItem('steps_theme')||'blue';document.documentElement.setAttribute('data-theme',t);})();</script>
+    <script>(function(){var t=localStorage.getItem('steps_theme')||'blue';var m=localStorage.getItem('steps_mode')||'light';document.documentElement.setAttribute('data-theme',t);document.documentElement.setAttribute('data-mode',m);})();</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= $pageTitle ?? SITE_NAME ?> - <?= SITE_FULL_NAME ?></title>

@@ -1,7 +1,7 @@
 // STEPS - Main JavaScript
 
 // ============================================
-// THEME SYSTEM
+// THEME & MODE SYSTEM
 // ============================================
 function initTheme() {
     const saved = localStorage.getItem('steps_theme') || 'blue';
@@ -19,7 +19,35 @@ function setTheme(themeName) {
     applyTheme(themeName);
     localStorage.setItem('steps_theme', themeName);
     closeThemeDropdown();
-    Toast.fire({ icon: 'success', title: 'Theme updated' });
+    if (typeof Toast !== 'undefined') Toast.fire({ icon: 'success', title: 'Theme updated' });
+}
+
+function initMode() {
+    const saved = localStorage.getItem('steps_mode') || 'light';
+    applyMode(saved);
+    updateModeIcon(saved);
+}
+
+function applyMode(mode) {
+    document.documentElement.setAttribute('data-mode', mode);
+}
+
+function toggleMode() {
+    const current = document.documentElement.getAttribute('data-mode') || 'light';
+    const next = current === 'light' ? 'dark' : 'light';
+    applyMode(next);
+    localStorage.setItem('steps_mode', next);
+    updateModeIcon(next);
+    if (typeof Toast !== 'undefined') Toast.fire({ icon: 'success', title: next === 'dark' ? 'Dark mode on' : 'Light mode on' });
+}
+
+function updateModeIcon(mode) {
+    const icon = document.getElementById('modeIcon');
+    if (!icon) return;
+    icon.classList.remove('fa-moon', 'fa-sun');
+    icon.classList.add(mode === 'dark' ? 'fa-sun' : 'fa-moon');
+    const btn = document.getElementById('modeToggle');
+    if (btn) btn.title = mode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode';
 }
 
 function toggleThemeDropdown() {
@@ -37,7 +65,10 @@ document.addEventListener('click', function(e) {
     if (!picker) closeThemeDropdown();
 });
 
-document.addEventListener('DOMContentLoaded', initTheme);
+document.addEventListener('DOMContentLoaded', function() {
+    initTheme();
+    initMode();
+});
 
 // ============================================
 // SWEETALERT2
