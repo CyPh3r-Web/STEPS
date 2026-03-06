@@ -96,7 +96,7 @@ require_once __DIR__ . '/../includes/sidebar.php';
     <i class="fas fa-graduation-cap text-indigo-500 mt-0.5 text-lg flex-shrink-0"></i>
     <div class="text-sm text-indigo-800">
         <p class="font-semibold mb-1">Strand Recommendation Module — Grade 7 to Grade 10</p>
-        <p class="text-xs text-indigo-700">Recommends the best SHS strand for each JHS student based on their <strong>4th quarter grades (G7–G10)</strong>, <strong>entrance examination score</strong>, and <strong>non-academic indicators</strong> (skills, hobbies, family background, annual income). Output: <strong>Top 3 Recommended Strands</strong> per student.</p>
+        <p class="text-xs text-indigo-700">Recommends the best SHS strand for each JHS student based on their <strong>4th quarter grades (G7–G10)</strong>, <strong>entrance examination score</strong>, and <strong>non-academic indicators</strong> (skills, hobbies, father's/mother's full name & occupation, annual income). Output: <strong>Top 3 Recommended Strands</strong> per student.</p>
     </div>
 </div>
 

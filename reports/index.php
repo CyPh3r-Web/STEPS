@@ -35,6 +35,7 @@ require_once __DIR__ . '/../includes/sidebar.php';
         <p class="text-xs text-gray-500 mt-1">Generate report for an entire section</p>
     </a>
 
+    <?php if (($_SESSION['role'] ?? '') !== 'guidance'): ?>
     <a href="<?= BASE_URL ?>reports/class_performance.php" class="stat-card hover:border-gray-300 cursor-pointer group" style="background:#fffbeb;">
         <div class="w-12 h-12 rounded-lg flex items-center justify-center mb-3 transition-colors" style="background:#fef3c7;">
             <i class="fas fa-chart-bar text-lg" style="color:#92400e;"></i>
@@ -50,6 +51,7 @@ require_once __DIR__ . '/../includes/sidebar.php';
         <h4 class="text-sm font-semibold text-gray-800">Competency Report</h4>
         <p class="text-xs text-gray-500 mt-1">Identify weak competencies and at-risk students</p>
     </a>
+    <?php endif; ?>
 </div>
 
 <!-- Recent Reports -->

@@ -1,9 +1,12 @@
 -- ============================================
 -- STEPS - Student Tracking & Evaluation Performance System
 -- Database Schema
+-- Import: mysql -u root -p < database/steps_db.sql
+-- Or use phpMyAdmin: Import > Choose steps_db.sql
 -- ============================================
 
-CREATE DATABASE IF NOT EXISTS steps_db;
+DROP DATABASE IF EXISTS steps_db;
+CREATE DATABASE steps_db;
 USE steps_db;
 
 -- ============================================
@@ -124,7 +127,10 @@ CREATE TABLE IF NOT EXISTS non_academic_indicators (
     student_id INT NOT NULL UNIQUE,
     skills TEXT,
     hobbies TEXT,
-    family_background TEXT,
+    father_fullname VARCHAR(100),
+    father_occupation VARCHAR(100),
+    mother_fullname VARCHAR(100),
+    mother_occupation VARCHAR(100),
     annual_income ENUM('below_100k', '100k_300k', '300k_500k', '500k_above') DEFAULT 'below_100k',
     entrance_exam_score DECIMAL(5,2),
     entrance_exam_date DATE,
@@ -406,7 +412,8 @@ INSERT INTO subjects (subject_code, subject_name, grade_level, strand_id, subjec
 ('ART02', 'Photography and Film',               11, 9, 'specialized'),
 ('ART03', 'Graphic Design',                     12, 9, 'specialized'),
 ('ART04', 'Creative Industry Immersion',        12, 9, 'specialized'),
--- Work Immersion subject removed
+-- Work Immersion (subject grade used for employability in course recommendation)
+('WI101', 'Work Immersion',                    12, NULL, 'immersion');
 
 INSERT INTO students (lrn, first_name, last_name, middle_name, gender, birthdate, section_id, strand_id, school_year) VALUES
 -- Section A (G11 STEM)
@@ -583,9 +590,9 @@ INSERT INTO grades (student_id, subject_id, quarter, grade, school_year, encoded
 (13, 32, 'Q1', 92, '2025-2026', 2), (13, 32, 'Q2', 93, '2025-2026', 2), (13, 32, 'Q3', 94, '2025-2026', 2), (13, 32, 'Q4', 95, '2025-2026', 2);  -- TLE 10 ★
 
 -- Non-academic indicators for JHS test students
-INSERT INTO non_academic_indicators (student_id, skills, hobbies, family_background, annual_income, entrance_exam_score) VALUES
-(9,  'coding, robotics, math problem solving',         'science fair, programming, gadgets',            'father is an engineer, mother is a nurse',               '300k_500k',  88.50),
-(10, 'cooking, sewing, handicrafts',                   'baking, crafts, cooking experiments, gardening', 'family runs a small eatery, mother is a dressmaker',     '100k_300k',  76.00),
-(11, 'creative writing, public speaking, debating',    'reading, journalism, theater, social media',     'parents are both teachers, community-oriented family',   '300k_500k',  85.00),
-(12, 'drawing, music, research, organizing',           'painting, playing guitar, reading, volunteering','parents have mixed occupations, well-rounded background', '100k_300k',  80.00),
-(13, 'selling, negotiating, organizing events',        'business, trading, basketball, cooking',         'family has a small business, father is an OFW',          '100k_300k',  79.50);
+INSERT INTO non_academic_indicators (student_id, skills, hobbies, father_fullname, father_occupation, mother_fullname, mother_occupation, annual_income, entrance_exam_score) VALUES
+(9,  'coding, robotics, math problem solving',         'science fair, programming, gadgets',            'Roberto Reyes',    'Engineer',  'Maria Reyes',    'Nurse',               '300k_500k',  88.50),
+(10, 'cooking, sewing, handicrafts',                   'baking, crafts, cooking experiments, gardening', 'Pedro Santos',     'Eatery Owner', 'Rosa Santos',  'Dressmaker',     '100k_300k',  76.00),
+(11, 'creative writing, public speaking, debating',    'reading, journalism, theater, social media',     'Antonio Villanueva', 'Teacher', 'Carmen Villanueva', 'Teacher',   '300k_500k',  85.00),
+(12, 'drawing, music, research, organizing',           'painting, playing guitar, reading, volunteering','Jose Dela Torre', 'Accountant', 'Teresa Dela Torre', 'Nurse', '100k_300k',  80.00),
+(13, 'selling, negotiating, organizing events',        'business, trading, basketball, cooking',         'Ramon Buenaventura', 'OFW', 'Luz Buenaventura', 'Small Business Owner',          '100k_300k',  79.50);

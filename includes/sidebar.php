@@ -48,8 +48,8 @@ function sidebarLinkClass($active) {
 <aside id="sidebar" class="sidebar-aside w-64 bg-white border-r border-gray-200 min-h-screen flex flex-col fixed left-0 top-0 z-30 transition-all duration-300 lg:translate-x-0 -translate-x-full">
     <div class="sidebar-header flex-shrink-0 flex items-center justify-between gap-2 p-4 border-b border-gray-200">
         <div class="flex items-center gap-3 min-w-0 flex-1">
-            <div class="w-10 h-10 flex-shrink-0 sidebar-logo rounded-lg flex items-center justify-center">
-                <span class="text-white font-bold text-sm">S</span>
+            <div class="w-10 h-10 flex-shrink-0 sidebar-logo flex items-center justify-center">
+                <img src="<?= BASE_URL ?>assets/img/seait.png" alt="<?= htmlspecialchars(SITE_FULL_NAME, ENT_QUOTES, 'UTF-8') ?> logo" class="sidebar-logo-img w-full h-full object-contain">
             </div>
             <div class="sidebar-brand min-w-0 overflow-hidden transition-all duration-300">
                 <h1 class="font-bold text-lg text-gray-900 tracking-tight truncate"><?= SITE_NAME ?></h1>

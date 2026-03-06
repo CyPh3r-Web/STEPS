@@ -40,27 +40,30 @@ $nai = $naiStmt->fetch() ?: [];
 $saveSuccess = '';
 $saveError   = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_nai') {
-    $skills         = sanitize($_POST['skills'] ?? '');
-    $hobbies        = sanitize($_POST['hobbies'] ?? '');
-    $familyBg       = sanitize($_POST['family_background'] ?? '');
-    $income         = $_POST['annual_income'] ?? 'below_100k';
-    $examScore      = $_POST['entrance_exam_score'] !== '' ? (float)$_POST['entrance_exam_score'] : null;
-    $examDate       = $_POST['entrance_exam_date'] ?: null;
+    $skills           = sanitize($_POST['skills'] ?? '');
+    $hobbies          = sanitize($_POST['hobbies'] ?? '');
+    $fatherFullname   = sanitize($_POST['father_fullname'] ?? '');
+    $fatherOccupation = sanitize($_POST['father_occupation'] ?? '');
+    $motherFullname   = sanitize($_POST['mother_fullname'] ?? '');
+    $motherOccupation = sanitize($_POST['mother_occupation'] ?? '');
+    $income           = $_POST['annual_income'] ?? 'below_100k';
+    $examScore        = $_POST['entrance_exam_score'] !== '' ? (float)$_POST['entrance_exam_score'] : null;
+    $examDate         = $_POST['entrance_exam_date'] ?: null;
 
     $validIncome = ['below_100k', '100k_300k', '300k_500k', '500k_above'];
     if (!in_array($income, $validIncome)) $income = 'below_100k';
 
     if (empty($nai)) {
         $ins = $pdo->prepare("INSERT INTO non_academic_indicators
-            (student_id, skills, hobbies, family_background, annual_income, entrance_exam_score, entrance_exam_date, updated_by)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-        $ins->execute([$studentId, $skills, $hobbies, $familyBg, $income, $examScore, $examDate, $_SESSION['user_id']]);
+            (student_id, skills, hobbies, father_fullname, father_occupation, mother_fullname, mother_occupation, annual_income, entrance_exam_score, entrance_exam_date, updated_by)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $ins->execute([$studentId, $skills, $hobbies, $fatherFullname, $fatherOccupation, $motherFullname, $motherOccupation, $income, $examScore, $examDate, $_SESSION['user_id']]);
     } else {
         $upd = $pdo->prepare("UPDATE non_academic_indicators
-            SET skills=?, hobbies=?, family_background=?, annual_income=?,
-                entrance_exam_score=?, entrance_exam_date=?, updated_by=?
+            SET skills=?, hobbies=?, father_fullname=?, father_occupation=?, mother_fullname=?, mother_occupation=?,
+                annual_income=?, entrance_exam_score=?, entrance_exam_date=?, updated_by=?
             WHERE student_id=?");
-        $upd->execute([$skills, $hobbies, $familyBg, $income, $examScore, $examDate, $_SESSION['user_id'], $studentId]);
+        $upd->execute([$skills, $hobbies, $fatherFullname, $fatherOccupation, $motherFullname, $motherOccupation, $income, $examScore, $examDate, $_SESSION['user_id'], $studentId]);
     }
     // Re-fetch
     $naiStmt->execute([$studentId]);
@@ -84,8 +87,17 @@ if (isset($_SESSION['user_id'])) {
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'generate') {
 
+    // ── Validate Non-Academic Indicators (required for both strand and course) ─
+    $naiRequired = !empty($nai) && trim($nai['skills'] ?? '') !== '' && trim($nai['hobbies'] ?? '') !== ''
+        && (trim($nai['father_fullname'] ?? '') !== '' || trim($nai['father_occupation'] ?? '') !== ''
+            || trim($nai['mother_fullname'] ?? '') !== '' || trim($nai['mother_occupation'] ?? '') !== '')
+        && ($nai['entrance_exam_score'] ?? '') !== '' && (float)($nai['entrance_exam_score'] ?? 0) > 0;
+    if (!$naiRequired) {
+        $genError = 'Please fill in all required Non-Academic Indicators first: Skills, Hobbies, Father\'s/Mother\'s name & occupation, and Entrance Exam Score.';
+    }
+
     // ── STRAND RECOMMENDATION (G7-G10) ───────────────────────────────────────
-    if ($isJHS) {
+    if ($isJHS && $naiRequired) {
         // 4th quarter grades for G7–G10
         $gradeStmt = $pdo->prepare("
             SELECT sub.strand_id, st2.strand_code, st2.strand_name,
@@ -127,10 +139,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'gener
                 $examComponent = $examScore > 0 ? $examScore : $q4Avg;
 
                 // Non-academic indicators component (heuristic scoring)
+                $familyText = trim(($nai['father_occupation'] ?? '') . ' ' . ($nai['mother_occupation'] ?? ''));
                 $naiScore = calcNAIScore(
                     $nai['skills'] ?? '',
                     $nai['hobbies'] ?? '',
-                    $nai['family_background'] ?? '',
+                    $familyText,
                     $nai['annual_income'] ?? 'below_100k',
                     $str['strand_code']
                 );
@@ -178,7 +191,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'gener
     }
 
     // ── COURSE RECOMMENDATION (G11-G12) ──────────────────────────────────────
-    if ($isSHS) {
+    if ($isSHS && $naiRequired) {
         // Q4 grades in Senior HS (still used for academic fit)
         $q4Stmt = $pdo->prepare("
             SELECT AVG(g.grade) as avg_grade
@@ -190,17 +203,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'gener
         $q4Stmt->execute([$studentId]);
         $q4ShsAvg = (float)($q4Stmt->fetchColumn() ?? 0);
 
-        // Employability based ONLY on latest Work Immersion / practicum rating
-        $wiStmt = $pdo->prepare("SELECT rating FROM work_immersion WHERE student_id = ? ORDER BY school_year DESC LIMIT 1");
-        try {
-            $wiStmt->execute([$studentId]);
-            $wiRating = (float)($wiStmt->fetchColumn() ?? 0);
-        } catch (PDOException $e) {
-            $wiRating = 0;
-        }
+        // Employability based on Work Immersion subject grade (from grades table)
+        $wiStmt = $pdo->prepare("
+            SELECT AVG(g.grade) as wi_grade
+            FROM grades g
+            JOIN subjects sub ON g.subject_id = sub.id
+            WHERE g.student_id = ? AND sub.subject_type = 'immersion' AND g.school_year = ?
+        ");
+        $wiStmt->execute([$studentId, SCHOOL_YEAR]);
+        $wiRating = (float)($wiStmt->fetchColumn() ?? 0);
 
         if ($wiRating == 0) {
-            $genError = 'No work immersion record found. Please encode work immersion/practicum rating first.';
+            $genError = 'No Work Immersion subject grade found. Please encode the Work Immersion grade in Grades first.';
         } else {
             $baseGrade = $q4ShsAvg ?: $wiRating;
             $employabilityScore = $wiRating;
@@ -222,10 +236,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'gener
                 $specAvg = (float)($specStmt->fetchColumn() ?? 0);
                 $academicScore = $specAvg > 0 ? $specAvg : $baseGrade;
 
+                $familyText = trim(($nai['father_occupation'] ?? '') . ' ' . ($nai['mother_occupation'] ?? ''));
                 $naiScore = calcNAIScore(
                     $nai['skills'] ?? '',
                     $nai['hobbies'] ?? '',
-                    $nai['family_background'] ?? '',
+                    $familyText,
                     $nai['annual_income'] ?? 'below_100k',
                     $str['strand_code']
                 );
@@ -427,7 +442,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     </div>
                     <div>
                         <h3 class="text-sm font-semibold text-gray-900">Non-Academic Indicators</h3>
-                        <p class="text-xs text-gray-400">Used in recommendation scoring</p>
+                        <p class="text-xs text-gray-400">Required for strand/course recommendation. Fill all fields before generating.</p>
                     </div>
                 </div>
                 <?php if (!empty($nai)): ?>
@@ -440,22 +455,39 @@ document.addEventListener('DOMContentLoaded', function() {
                 <input type="hidden" name="action" value="save_nai">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
                     <div class="md:col-span-2">
-                        <label class="form-label">Skills
+                        <label class="form-label">Skills <span class="text-red-500">*</span>
                             <span class="text-xs text-gray-400 font-normal ml-1">(e.g. coding, drawing, cooking, math)</span>
                         </label>
                         <textarea name="skills" rows="2" class="form-input resize-none" placeholder="List student's skills..."><?= sanitize($nai['skills'] ?? '') ?></textarea>
                     </div>
                     <div class="md:col-span-2">
-                        <label class="form-label">Hobbies / Interests
+                        <label class="form-label">Hobbies / Interests <span class="text-red-500">*</span>
                             <span class="text-xs text-gray-400 font-normal ml-1">(e.g. reading, sports, music, technology)</span>
                         </label>
                         <textarea name="hobbies" rows="2" class="form-input resize-none" placeholder="List student's hobbies and interests..."><?= sanitize($nai['hobbies'] ?? '') ?></textarea>
                     </div>
                     <div class="md:col-span-2">
-                        <label class="form-label">Family Background
-                            <span class="text-xs text-gray-400 font-normal ml-1">(e.g. parents' occupation, family business, educational background)</span>
-                        </label>
-                        <textarea name="family_background" rows="2" class="form-input resize-none" placeholder="Describe family background..."><?= sanitize($nai['family_background'] ?? '') ?></textarea>
+                        <p class="text-xs text-amber-600 font-medium mb-2"><i class="fas fa-info-circle mr-1"></i> At least one parent field (name or occupation) is required</p>
+                    </div>
+                    <div>
+                        <label class="form-label">Father's Full Name</label>
+                        <input type="text" name="father_fullname" class="form-input" placeholder="e.g. Juan Dela Cruz"
+                               value="<?= sanitize($nai['father_fullname'] ?? '') ?>">
+                    </div>
+                    <div>
+                        <label class="form-label">Father's Occupation</label>
+                        <input type="text" name="father_occupation" class="form-input" placeholder="e.g. Engineer, OFW, Teacher"
+                               value="<?= sanitize($nai['father_occupation'] ?? '') ?>">
+                    </div>
+                    <div>
+                        <label class="form-label">Mother's Full Name</label>
+                        <input type="text" name="mother_fullname" class="form-input" placeholder="e.g. Maria Santos"
+                               value="<?= sanitize($nai['mother_fullname'] ?? '') ?>">
+                    </div>
+                    <div>
+                        <label class="form-label">Mother's Occupation</label>
+                        <input type="text" name="mother_occupation" class="form-input" placeholder="e.g. Nurse, Dressmaker, Housewife"
+                               value="<?= sanitize($nai['mother_occupation'] ?? '') ?>">
                     </div>
                     <div>
                         <label class="form-label">Annual Family Income</label>
@@ -467,7 +499,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         </select>
                     </div>
                     <div>
-                        <label class="form-label">Entrance Examination Score
+                        <label class="form-label">Entrance Examination Score <span class="text-red-500">*</span>
                             <span class="text-xs text-gray-400 font-normal ml-1">(0–100)</span>
                         </label>
                         <input type="number" name="entrance_exam_score" class="form-input"

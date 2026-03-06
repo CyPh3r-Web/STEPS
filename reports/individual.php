@@ -3,10 +3,88 @@ $pageTitle = 'Individual Diagnostic Report';
 require_once __DIR__ . '/../includes/header.php';
 requireLogin();
 
+$strandGradeRaw = $_GET['strand_grade'] ?? '';
+$sectionIdFilter = $_GET['section_id'] ?? '';
 $studentId = $_GET['student_id'] ?? '';
-$students = $pdo->query("SELECT s.id, s.first_name, s.last_name, s.lrn, sec.section_name
-    FROM students s LEFT JOIN sections sec ON s.section_id = sec.id
-    WHERE s.status = 'active' ORDER BY s.last_name, s.first_name")->fetchAll();
+
+// Strand/grade options: only combinations that have sections with active students
+$strandGradeOptions = $pdo->query("
+    SELECT DISTINCT sec.grade_level, sec.strand
+    FROM sections sec
+    INNER JOIN students s ON s.section_id = sec.id AND s.status = 'active' AND s.school_year = " . $pdo->quote(SCHOOL_YEAR) . "
+    WHERE sec.school_year = " . $pdo->quote(SCHOOL_YEAR) . "
+    ORDER BY sec.grade_level, COALESCE(sec.strand, '')
+")->fetchAll();
+
+$sectionsFiltered = [];
+$studentsFiltered = [];
+$gradeLevel = null;
+$strandFilter = null;
+
+if ($strandGradeRaw !== '') {
+    $parts = explode('|', $strandGradeRaw, 2);
+    $gradeLevel = (int) $parts[0];
+    $strandFilter = isset($parts[1]) ? $parts[1] : '';
+    $secSql = "SELECT sec.id, sec.section_name, sec.grade_level, sec.strand
+        FROM sections sec
+        INNER JOIN students s ON s.section_id = sec.id AND s.status = 'active' AND s.school_year = " . $pdo->quote(SCHOOL_YEAR) . "
+        WHERE sec.grade_level = ? AND sec.school_year = " . $pdo->quote(SCHOOL_YEAR);
+    $secParams = [$gradeLevel];
+    if ($strandFilter === '' || $strandFilter === null) {
+        $secSql .= " AND (sec.strand IS NULL OR sec.strand = '')";
+    } else {
+        $secSql .= " AND sec.strand = ?";
+        $secParams[] = $strandFilter;
+    }
+    $secSql .= " GROUP BY sec.id ORDER BY sec.section_name";
+    $stmtSec = $pdo->prepare($secSql);
+    $stmtSec->execute($secParams);
+    $sectionsFiltered = $stmtSec->fetchAll();
+}
+
+$sectionIdsFiltered = array_column($sectionsFiltered, 'id');
+if ($sectionIdFilter !== '' && in_array((int)$sectionIdFilter, array_map('intval', $sectionIdsFiltered))) {
+    $stmtSt = $pdo->prepare("SELECT s.id, s.first_name, s.last_name, s.lrn FROM students s WHERE s.section_id = ? AND s.status = 'active' ORDER BY s.last_name, s.first_name");
+    $stmtSt->execute([$sectionIdFilter]);
+    $studentsFiltered = $stmtSt->fetchAll();
+}
+
+// If student_id is set but filters aren't, derive strand_grade and section from student for UX
+if ($studentId && ($strandGradeRaw === '' || $sectionIdFilter === '')) {
+    $rowStmt = $pdo->prepare("SELECT s.section_id, sec.grade_level, sec.strand FROM students s LEFT JOIN sections sec ON s.section_id = sec.id WHERE s.id = ?");
+    $rowStmt->execute([$studentId]);
+    $studentSection = $rowStmt->fetch();
+    if ($studentSection && $studentSection['section_id']) {
+        if ($sectionIdFilter === '') $sectionIdFilter = $studentSection['section_id'];
+        if ($strandGradeRaw === '' && $studentSection['grade_level'] !== null) {
+            $gradeLevel = (int) $studentSection['grade_level'];
+            $strandFilter = $studentSection['strand'] ?? '';
+            $strandGradeRaw = $gradeLevel . '|' . $strandFilter;
+            if (!$sectionsFiltered && $gradeLevel) {
+                $secSql = "SELECT sec.id, sec.section_name, sec.grade_level, sec.strand
+                    FROM sections sec
+                    INNER JOIN students st ON st.section_id = sec.id AND st.status = 'active' AND st.school_year = " . $pdo->quote(SCHOOL_YEAR) . "
+                    WHERE sec.grade_level = ? AND sec.school_year = " . $pdo->quote(SCHOOL_YEAR);
+                $secParams = [$gradeLevel];
+                if ($strandFilter === '' || $strandFilter === null) {
+                    $secSql .= " AND (sec.strand IS NULL OR sec.strand = '')";
+                } else {
+                    $secSql .= " AND sec.strand = ?";
+                    $secParams[] = $strandFilter;
+                }
+                $secSql .= " GROUP BY sec.id ORDER BY sec.section_name";
+                $stmtSec = $pdo->prepare($secSql);
+                $stmtSec->execute($secParams);
+                $sectionsFiltered = $stmtSec->fetchAll();
+            }
+            if (empty($studentsFiltered) && $sectionIdFilter) {
+                $stmtSt = $pdo->prepare("SELECT s.id, s.first_name, s.last_name, s.lrn FROM students s WHERE s.section_id = ? AND s.status = 'active' ORDER BY s.last_name, s.first_name");
+                $stmtSt->execute([$sectionIdFilter]);
+                $studentsFiltered = $stmtSt->fetchAll();
+            }
+        }
+    }
+}
 
 $student = null;
 $grades = [];
@@ -55,28 +133,78 @@ require_once __DIR__ . '/../includes/sidebar.php';
     <i class="fas fa-arrow-left"></i> Back to Reports
 </a>
 
-<!-- Student Selector -->
+<!-- Filters: Strand/Grade → Section → Student (auto-fetch on select) -->
 <div class="bg-white border border-gray-200 rounded-xl p-5 mb-6">
-    <form method="GET" class="flex flex-wrap items-end gap-4">
-        <div class="flex-1 min-w-[250px]">
-            <label class="form-label">Select Student</label>
-            <select name="student_id" class="form-select">
-                <option value="">Choose a student...</option>
-                <?php foreach ($students as $s): ?>
-                    <option value="<?= $s['id'] ?>" <?= $studentId == $s['id'] ? 'selected' : '' ?>>
-                        <?= sanitize($s['last_name'] . ', ' . $s['first_name']) ?> (<?= sanitize($s['section_name'] ?? 'N/A') ?>)
-                    </option>
-                <?php endforeach; ?>
-            </select>
+    <form method="GET" id="reportFilterForm" class="space-y-4">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+                <label class="form-label">Strand / Grade</label>
+                <select name="strand_grade" id="strand_grade" class="form-select">
+                    <option value="">Select strand/grade...</option>
+                    <?php foreach ($strandGradeOptions as $sg): ?>
+                        <?php
+                        $val = (int)$sg['grade_level'] . '|' . ($sg['strand'] ?? '');
+                        $label = 'Grade ' . $sg['grade_level'];
+                        if (!empty($sg['strand'])) $label .= ' - ' . $sg['strand'];
+                        ?>
+                        <option value="<?= htmlspecialchars($val) ?>" <?= $strandGradeRaw === $val ? 'selected' : '' ?>><?= sanitize($label) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div>
+                <label class="form-label">Section</label>
+                <select name="section_id" id="section_id" class="form-select" <?= empty($sectionsFiltered) ? 'disabled' : '' ?>>
+                    <option value="">Select section...</option>
+                    <?php foreach ($sectionsFiltered as $sec): ?>
+                        <option value="<?= (int)$sec['id'] ?>" <?= $sectionIdFilter == $sec['id'] ? 'selected' : '' ?>>
+                            <?= sanitize($sec['section_name']) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div>
+                <label class="form-label">Student</label>
+                <select name="student_id" id="student_id" class="form-select" <?= empty($studentsFiltered) ? 'disabled' : '' ?>>
+                    <option value="">Select student...</option>
+                    <?php foreach ($studentsFiltered as $s): ?>
+                        <option value="<?= (int)$s['id'] ?>" <?= $studentId == $s['id'] ? 'selected' : '' ?>>
+                            <?= sanitize($s['last_name'] . ', ' . $s['first_name']) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
         </div>
-        <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-file-alt"></i> Generate Report</button>
-        <?php if ($student): ?>
-            <button type="button" onclick="window.print()" class="btn btn-secondary btn-sm no-print">
-                <i class="fas fa-print"></i> Print
-            </button>
-        <?php endif; ?>
+        <div class="flex flex-wrap items-center gap-2">
+            <?php if ($student): ?>
+                <button type="button" onclick="window.print()" class="btn btn-secondary btn-sm no-print">
+                    <i class="fas fa-print"></i> Print
+                </button>
+            <?php endif; ?>
+        </div>
     </form>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var form = document.getElementById('reportFilterForm');
+    var strandGrade = document.getElementById('strand_grade');
+    var sectionId = document.getElementById('section_id');
+    var studentId = document.getElementById('student_id');
+
+    strandGrade.addEventListener('change', function() {
+        sectionId.value = '';
+        studentId.value = '';
+        form.submit();
+    });
+    sectionId.addEventListener('change', function() {
+        studentId.value = '';
+        form.submit();
+    });
+    studentId.addEventListener('change', function() {
+        form.submit();
+    });
+});
+</script>
 
 <?php if ($student): ?>
     <?php

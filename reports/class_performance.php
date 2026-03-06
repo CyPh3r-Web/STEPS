@@ -1,7 +1,7 @@
 <?php
 $pageTitle = 'Class Performance Summary';
 require_once __DIR__ . '/../includes/header.php';
-requireLogin();
+requireRole(['admin', 'teacher']);
 
 $sectionFilter = $_GET['section'] ?? '';
 $sections = $pdo->query("SELECT * FROM sections ORDER BY grade_level, section_name")->fetchAll();

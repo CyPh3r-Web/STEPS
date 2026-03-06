@@ -72,8 +72,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <div class="login-bg" aria-hidden="true"></div>
     <div class="login-card">
         <div class="text-center mb-8">
-            <div class="w-14 h-14 login-logo rounded-xl flex items-center justify-center mx-auto mb-4">
-                <span class="text-white font-bold text-xl">S</span>
+            <div class="login-logo-wrap mb-4">
+                <img src="<?= BASE_URL ?>assets/img/seait.png" alt="<?= SITE_FULL_NAME ?> logo" class="login-logo-img">
             </div>
             <h1 class="text-2xl font-bold text-gray-900"><?= SITE_NAME ?></h1>
             <p class="text-sm text-gray-500 mt-1"><?= SITE_FULL_NAME ?></p>
