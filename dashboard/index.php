@@ -4,86 +4,127 @@ require_once __DIR__ . '/../includes/header.php';
 requireLogin();
 
 $role = $_SESSION['role'];
-$userId = $_SESSION['user_id'];
 
+$sections = [];
 $sectionFilter = $_GET['section'] ?? '';
-$sections = $pdo->query("SELECT * FROM sections ORDER BY grade_level, section_name")->fetchAll();
+$totalStudents = 0;
+$classAvg = 0;
+$atRiskCount = 0;
+$weakCount = 0;
+$excelCount = 0;
+$atRiskPct = 0;
+$weakPct = 0;
+$excelPct = 0;
+$lowPerformers = [];
+$dashTopPerformers = [];
+$avgEmployability = 0;
+$recentRecs = [];
 
-// Total students
-$studentQuery = "SELECT COUNT(*) as total FROM students WHERE status = 'active'";
-$studentParams = [];
-if ($sectionFilter) {
-    $studentQuery .= " AND section_id = ?";
-    $studentParams[] = $sectionFilter;
+if ($role === 'teacher') {
+    $sections = $pdo->query('SELECT * FROM sections ORDER BY grade_level, section_name')->fetchAll();
+
+    $studentQuery = "SELECT COUNT(*) as total FROM students WHERE status = 'active'";
+    $studentParams = [];
+    if ($sectionFilter) {
+        $studentQuery .= ' AND section_id = ?';
+        $studentParams[] = $sectionFilter;
+    }
+    $stmt = $pdo->prepare($studentQuery);
+    $stmt->execute($studentParams);
+    $totalStudents = $stmt->fetch()['total'];
+
+    $avgQuery = "SELECT AVG(g.grade) as avg_grade FROM grades g
+                 JOIN students s ON g.student_id = s.id WHERE s.status = 'active'";
+    $avgParams = [];
+    if ($sectionFilter) {
+        $avgQuery .= ' AND s.section_id = ?';
+        $avgParams[] = $sectionFilter;
+    }
+    $stmt = $pdo->prepare($avgQuery);
+    $stmt->execute($avgParams);
+    $classAvg = $stmt->fetch()['avg_grade'] ?? 0;
+
+    $atRiskQuery = "SELECT COUNT(DISTINCT g.student_id) as cnt FROM (
+        SELECT student_id, AVG(grade) as avg_g FROM grades
+        JOIN students ON grades.student_id = students.id
+        WHERE students.status = 'active'";
+    $atRiskParams = [];
+    if ($sectionFilter) {
+        $atRiskQuery .= ' AND students.section_id = ?';
+        $atRiskParams[] = $sectionFilter;
+    }
+    $atRiskQuery .= ' GROUP BY student_id HAVING avg_g >= 75 AND avg_g < 80) g';
+    $stmt = $pdo->prepare($atRiskQuery);
+    $stmt->execute($atRiskParams);
+    $atRiskCount = $stmt->fetch()['cnt'];
+
+    $weakQuery = "SELECT COUNT(DISTINCT g.student_id) as cnt FROM (
+        SELECT student_id, AVG(grade) as avg_g FROM grades
+        JOIN students ON grades.student_id = students.id
+        WHERE students.status = 'active'";
+    $weakParams = [];
+    if ($sectionFilter) {
+        $weakQuery .= ' AND students.section_id = ?';
+        $weakParams[] = $sectionFilter;
+    }
+    $weakQuery .= ' GROUP BY student_id HAVING avg_g < 75) g';
+    $stmt = $pdo->prepare($weakQuery);
+    $stmt->execute($weakParams);
+    $weakCount = $stmt->fetch()['cnt'];
+
+    $excelQuery = "SELECT COUNT(DISTINCT g.student_id) as cnt FROM (
+        SELECT student_id, AVG(grade) as avg_g FROM grades
+        JOIN students ON grades.student_id = students.id
+        WHERE students.status = 'active'";
+    $excelParams = [];
+    if ($sectionFilter) {
+        $excelQuery .= ' AND students.section_id = ?';
+        $excelParams[] = $sectionFilter;
+    }
+    $excelQuery .= ' GROUP BY student_id HAVING avg_g >= 80) g';
+    $stmt = $pdo->prepare($excelQuery);
+    $stmt->execute($excelParams);
+    $excelCount = $stmt->fetch()['cnt'];
+
+    $atRiskPct = $totalStudents > 0 ? round(($atRiskCount / $totalStudents) * 100, 1) : 0;
+    $weakPct = $totalStudents > 0 ? round(($weakCount / $totalStudents) * 100, 1) : 0;
+    $excelPct = $totalStudents > 0 ? round(($excelCount / $totalStudents) * 100, 1) : 0;
+
+    $recentGrades = $pdo->prepare("SELECT s.first_name, s.last_name, sec.section_name, AVG(g.grade) as avg_grade
+        FROM students s
+        JOIN grades g ON s.id = g.student_id
+        LEFT JOIN sections sec ON s.section_id = sec.id
+        WHERE s.status = 'active'
+        GROUP BY s.id ORDER BY avg_grade ASC LIMIT 10");
+    $recentGrades->execute();
+    $lowPerformers = $recentGrades->fetchAll();
+
+    $dashTopPerformers = $pdo->query("SELECT ranked.* FROM (
+        SELECT
+            s.id as student_id,
+            CONCAT(s.first_name, ' ', s.last_name) as student_name,
+            sec.section_name,
+            st.strand_code,
+            AVG(g.grade) as specialized_avg,
+            RANK() OVER (PARTITION BY s.section_id ORDER BY AVG(g.grade) DESC) as section_rank
+        FROM students s
+        JOIN sections sec ON s.section_id = sec.id
+        JOIN strands st ON s.strand_id = st.id
+        JOIN grades g ON s.id = g.student_id
+        JOIN subjects sub ON g.subject_id = sub.id
+        WHERE s.status = 'active'
+          AND sub.subject_type = 'specialized'
+          AND sub.strand_id = s.strand_id
+        GROUP BY s.id, s.section_id
+        HAVING AVG(g.grade) >= 80
+    ) ranked
+    WHERE ranked.section_rank <= 3
+    ORDER BY ranked.specialized_avg DESC
+    LIMIT 5")->fetchAll();
 }
-$stmt = $pdo->prepare($studentQuery);
-$stmt->execute($studentParams);
-$totalStudents = $stmt->fetch()['total'];
 
-// Class average performance
-$avgQuery = "SELECT AVG(g.grade) as avg_grade FROM grades g
-             JOIN students s ON g.student_id = s.id WHERE s.status = 'active'";
-$avgParams = [];
-if ($sectionFilter) {
-    $avgQuery .= " AND s.section_id = ?";
-    $avgParams[] = $sectionFilter;
-}
-$stmt = $pdo->prepare($avgQuery);
-$stmt->execute($avgParams);
-$classAvg = $stmt->fetch()['avg_grade'] ?? 0;
-
-// Students at risk (avg grade 75-79)
-$atRiskQuery = "SELECT COUNT(DISTINCT g.student_id) as cnt FROM (
-    SELECT student_id, AVG(grade) as avg_g FROM grades
-    JOIN students ON grades.student_id = students.id
-    WHERE students.status = 'active'";
-$atRiskParams = [];
-if ($sectionFilter) {
-    $atRiskQuery .= " AND students.section_id = ?";
-    $atRiskParams[] = $sectionFilter;
-}
-$atRiskQuery .= " GROUP BY student_id HAVING avg_g >= 75 AND avg_g < 80) g";
-$stmt = $pdo->prepare($atRiskQuery);
-$stmt->execute($atRiskParams);
-$atRiskCount = $stmt->fetch()['cnt'];
-
-// Students weak (avg grade below 75)
-$weakQuery = "SELECT COUNT(DISTINCT g.student_id) as cnt FROM (
-    SELECT student_id, AVG(grade) as avg_g FROM grades
-    JOIN students ON grades.student_id = students.id
-    WHERE students.status = 'active'";
-$weakParams = [];
-if ($sectionFilter) {
-    $weakQuery .= " AND students.section_id = ?";
-    $weakParams[] = $sectionFilter;
-}
-$weakQuery .= " GROUP BY student_id HAVING avg_g < 75) g";
-$stmt = $pdo->prepare($weakQuery);
-$stmt->execute($weakParams);
-$weakCount = $stmt->fetch()['cnt'];
-
-// Students proficient (avg grade 80+)
-$excelQuery = "SELECT COUNT(DISTINCT g.student_id) as cnt FROM (
-    SELECT student_id, AVG(grade) as avg_g FROM grades
-    JOIN students ON grades.student_id = students.id
-    WHERE students.status = 'active'";
-$excelParams = [];
-if ($sectionFilter) {
-    $excelQuery .= " AND students.section_id = ?";
-    $excelParams[] = $sectionFilter;
-}
-$excelQuery .= " GROUP BY student_id HAVING avg_g >= 80) g";
-$stmt = $pdo->prepare($excelQuery);
-$stmt->execute($excelParams);
-$excelCount = $stmt->fetch()['cnt'];
-
-$atRiskPct = $totalStudents > 0 ? round(($atRiskCount / $totalStudents) * 100, 1) : 0;
-$weakPct = $totalStudents > 0 ? round(($weakCount / $totalStudents) * 100, 1) : 0;
-$excelPct = $totalStudents > 0 ? round(($excelCount / $totalStudents) * 100, 1) : 0;
-
-// Guidance data
-if ($role === 'guidance' || $role === 'admin') {
-    $empStmt = $pdo->query("SELECT AVG(employability_score) as avg_score FROM career_recommendations");
+if ($role === 'guidance') {
+    $empStmt = $pdo->query("SELECT AVG(employability_score) as avg_score FROM career_recommendations WHERE recommendation_type = 'course' AND employability_score IS NOT NULL");
     $avgEmployability = $empStmt->fetch()['avg_score'] ?? 0;
 
     $recentRecs = $pdo->query("SELECT cr.*, CONCAT(s.first_name, ' ', s.last_name) as student_name, st.strand_name
@@ -93,44 +134,64 @@ if ($role === 'guidance' || $role === 'admin') {
         ORDER BY cr.created_at DESC LIMIT 5")->fetchAll();
 }
 
-// Recent student grades for quick view
-$recentGrades = $pdo->prepare("SELECT s.first_name, s.last_name, sec.section_name, AVG(g.grade) as avg_grade
-    FROM students s
-    JOIN grades g ON s.id = g.student_id
-    LEFT JOIN sections sec ON s.section_id = sec.id
-    WHERE s.status = 'active'
-    GROUP BY s.id ORDER BY avg_grade ASC LIMIT 10");
-$recentGrades->execute();
-$lowPerformers = $recentGrades->fetchAll();
-
-// Strand Top Performers — top 5 across all strands
-$dashTopPerformers = $pdo->query("SELECT ranked.* FROM (
-    SELECT
-        s.id as student_id,
-        CONCAT(s.first_name, ' ', s.last_name) as student_name,
-        sec.section_name,
-        st.strand_code,
-        AVG(g.grade) as specialized_avg,
-        RANK() OVER (PARTITION BY s.section_id ORDER BY AVG(g.grade) DESC) as section_rank
-    FROM students s
-    JOIN sections sec ON s.section_id = sec.id
-    JOIN strands st ON s.strand_id = st.id
-    JOIN grades g ON s.id = g.student_id
-    JOIN subjects sub ON g.subject_id = sub.id
-    WHERE s.status = 'active'
-      AND sub.subject_type = 'specialized'
-      AND sub.strand_id = s.strand_id
-    GROUP BY s.id, s.section_id
-    HAVING AVG(g.grade) >= 80
-) ranked
-WHERE ranked.section_rank <= 3
-ORDER BY ranked.specialized_avg DESC
-LIMIT 5")->fetchAll();
+$adminStats = null;
+if ($role === 'admin') {
+    $roleCounts = $pdo->query("SELECT role, COUNT(*) as c FROM users GROUP BY role")->fetchAll(PDO::FETCH_KEY_PAIR);
+    $adminStats = [
+        'users' => array_sum($roleCounts),
+        'role_counts' => $roleCounts,
+        'logins_week' => (int)$pdo->query("SELECT COUNT(*) FROM activity_logs WHERE action = 'login' AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)")->fetchColumn(),
+        'tickets_open' => 0,
+        'backups' => 0,
+    ];
+    try {
+        $adminStats['tickets_open'] = (int)$pdo->query("SELECT COUNT(*) FROM support_tickets WHERE status IN ('open','in_progress')")->fetchColumn();
+    } catch (PDOException $e) {
+    }
+    try {
+        $adminStats['backups'] = (int)$pdo->query('SELECT COUNT(*) FROM backup_logs')->fetchColumn();
+    } catch (PDOException $e) {
+    }
+}
 
 require_once __DIR__ . '/../includes/sidebar.php';
 ?>
 
-<!-- Section Filter -->
+<?php if ($role === 'admin'): ?>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
+    <div class="stat-card" style="background:#f8fafc;">
+        <span class="text-sm font-medium text-gray-600">User accounts</span>
+        <p class="text-3xl font-bold text-gray-800 mt-2"><?= (int)$adminStats['users'] ?></p>
+        <p class="text-xs text-gray-500 mt-1">Teachers, counselors, admins</p>
+    </div>
+    <div class="stat-card" style="background:#eff6ff;">
+        <span class="text-sm font-medium text-gray-600">Logins (7 days)</span>
+        <p class="text-3xl font-bold text-gray-800 mt-2"><?= (int)$adminStats['logins_week'] ?></p>
+        <p class="text-xs text-gray-500 mt-1">From activity log</p>
+    </div>
+    <div class="stat-card" style="background:#fffbeb;">
+        <span class="text-sm font-medium text-gray-600">Open support tickets</span>
+        <p class="text-3xl font-bold text-gray-800 mt-2"><?= (int)$adminStats['tickets_open'] ?></p>
+        <p class="text-xs text-gray-500 mt-1"><a href="<?= BASE_URL ?>admin/support.php" class="text-blue-600 hover:underline">Manage</a></p>
+    </div>
+    <div class="stat-card" style="background:#f0fdf4;">
+        <span class="text-sm font-medium text-gray-600">Backups on record</span>
+        <p class="text-3xl font-bold text-gray-800 mt-2"><?= (int)$adminStats['backups'] ?></p>
+        <p class="text-xs text-gray-500 mt-1"><a href="<?= BASE_URL ?>backup/index.php" class="text-blue-600 hover:underline">Backup &amp; recovery</a></p>
+    </div>
+</div>
+<div class="bg-white border border-gray-200 rounded-xl p-6 mb-6">
+    <h3 class="text-sm font-semibold text-gray-900 mb-3">Administrator</h3>
+    <p class="text-sm text-gray-600 mb-4">You manage accounts, settings, logs, and backups. Student grades and academic analytics are not shown here.</p>
+    <div class="flex flex-wrap gap-2">
+        <a href="<?= BASE_URL ?>admin/system_reports.php" class="btn btn-primary btn-sm"><i class="fas fa-chart-pie"></i> System reports</a>
+        <a href="<?= BASE_URL ?>admin/activity_logs.php" class="btn btn-secondary btn-sm"><i class="fas fa-list"></i> Activity logs</a>
+        <a href="<?= BASE_URL ?>admin/settings.php" class="btn btn-secondary btn-sm"><i class="fas fa-cog"></i> Settings</a>
+    </div>
+</div>
+<?php endif; ?>
+
+<?php if ($role === 'teacher'): ?>
 <div class="mb-6 flex flex-wrap items-center justify-between gap-4">
     <form method="GET" class="flex items-center gap-3">
         <label class="text-sm font-medium text-gray-600">Filter by Section:</label>
@@ -148,8 +209,6 @@ require_once __DIR__ . '/../includes/sidebar.php';
     </a>
 </div>
 
-<?php if ($role === 'teacher' || $role === 'admin'): ?>
-<!-- Teacher Dashboard -->
 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
     <div class="stat-card" style="background:#f8fafc;">
         <div class="flex items-center justify-between mb-3">
@@ -196,7 +255,6 @@ require_once __DIR__ . '/../includes/sidebar.php';
     </div>
 </div>
 
-<!-- Quick Summary Color Indicators -->
 <div class="bg-white border border-gray-200 rounded-xl p-6 mb-8">
     <h3 class="text-sm font-semibold text-gray-900 mb-4">Quick Summary</h3>
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -227,7 +285,6 @@ require_once __DIR__ . '/../includes/sidebar.php';
     </div>
 </div>
 
-<!-- Low Performers Table -->
 <div class="bg-white border border-gray-200 rounded-xl overflow-hidden">
     <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
         <h3 class="text-sm font-semibold text-gray-900">Students Needing Attention</h3>
@@ -263,7 +320,6 @@ require_once __DIR__ . '/../includes/sidebar.php';
     </table>
 </div>
 
-<!-- Strand Top Performers -->
 <div class="bg-white border border-gray-200 rounded-xl overflow-hidden mt-6">
     <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
         <div class="flex items-center gap-2">
@@ -295,14 +351,111 @@ require_once __DIR__ . '/../includes/sidebar.php';
         </tbody>
     </table>
 </div>
+
+<!-- Class Performance Module -->
+<div class="mb-6 mt-8 flex items-center justify-between">
+    <h3 class="text-lg font-semibold text-gray-900"><i class="fas fa-chart-bar text-blue-600 mr-2"></i>Class Performance Summary</h3>
+    <div class="flex gap-2 no-print">
+        <button onclick="window.print()" class="btn btn-secondary btn-sm"><i class="fas fa-print"></i> Print</button>
+        <a href="<?= BASE_URL ?>reports/class_performance.php" class="btn btn-primary btn-sm"><i class="fas fa-expand"></i> Full View</a>
+    </div>
+</div>
+
+<!-- Section Performance Overview -->
+<div class="bg-white border border-gray-200 rounded-xl overflow-hidden mb-6">
+    <div class="px-6 py-4 border-b border-gray-200">
+        <h3 class="text-sm font-semibold text-gray-900">Section Performance Overview</h3>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="steps-table">
+            <thead>
+                <tr>
+                    <th>Section</th><th>Grade Level</th><th>Strand</th><th>Students</th><th>Avg. Grade</th><th>Min</th><th>Max</th><th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($sectionPerformance as $sp): ?>
+                    <?php $comp = $sp['avg_grade'] ? getCompetencyLevel($sp['avg_grade']) : null; ?>
+                    <tr>
+                        <td class="font-medium"><?= sanitize($sp['section_name']) ?></td>
+                        <td><?= $sp['grade_level'] ?></td>
+                        <td><?= sanitize($sp['strand'] ?? 'N/A') ?></td>
+                        <td><?= $sp['student_count'] ?></td>
+                        <td class="font-semibold"><?= $sp['avg_grade'] ? formatNumber($sp['avg_grade']) : 'N/A' ?></td>
+                        <td><?= $sp['min_grade'] ? formatNumber($sp['min_grade']) : '-' ?></td>
+                        <td><?= $sp['max_grade'] ? formatNumber($sp['max_grade']) : '-' ?></td>
+                        <td>
+                            <?php if ($comp): ?>
+                                <span class="badge badge-<?= $comp['color'] === 'emerald' ? 'green' : $comp['color'] ?>"><?= $comp['label'] ?></span>
+                            <?php else: ?>-<?php endif; ?>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+                <?php if (empty($sectionPerformance)): ?>
+                    <tr><td colspan="8" class="text-center text-gray-400 py-6">No performance data available.</td></tr>
+                <?php endif; ?>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Quarter Comparison -->
+<?php if (!empty($quarterData)): ?>
+<div class="grid grid-cols-2 md:grid-cols-4 gap-5 mb-6">
+    <?php foreach ($quarterData as $qd): ?>
+        <?php $qComp = getCompetencyLevel($qd['avg_grade']); ?>
+        <div class="stat-card text-center" style="background:#f8fafc;">
+            <p class="text-sm font-semibold text-gray-600"><?= $qd['quarter'] ?></p>
+            <p class="text-3xl font-bold text-gray-800 my-2"><?= formatNumber($qd['avg_grade']) ?></p>
+            <p class="text-xs text-gray-500"><?= $qd['students'] ?> student(s)</p>
+        </div>
+    <?php endforeach; ?>
+</div>
 <?php endif; ?>
 
-<?php if ($role === 'guidance' || $role === 'admin'): ?>
-<!-- Guidance Dashboard -->
-<div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-8 <?= $role === 'admin' ? 'mt-8' : '' ?>">
+<!-- Subject Performance -->
+<div class="bg-white border border-gray-200 rounded-xl overflow-hidden mb-8">
+    <div class="px-6 py-4 border-b border-gray-200">
+        <h3 class="text-sm font-semibold text-gray-900">Subject Performance Breakdown</h3>
+        <p class="text-xs text-gray-400 mt-1">Sorted by lowest average (identifies weak competency areas)</p>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="steps-table" id="subjectPerfTable">
+            <thead>
+                <tr>
+                    <th>Subject</th><th>Code</th><th>Avg Grade</th><th>Students</th><th>Weak</th><th>At Risk</th><th>Proficient</th><th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($subjectPerformance as $subp): ?>
+                    <?php $subComp = getCompetencyLevel($subp['avg_grade']); ?>
+                    <tr>
+                        <td class="font-medium"><?= sanitize($subp['subject_name']) ?></td>
+                        <td class="text-xs text-gray-500"><?= sanitize($subp['subject_code']) ?></td>
+                        <td class="font-semibold"><?= formatNumber($subp['avg_grade']) ?></td>
+                        <td><?= $subp['student_count'] ?></td>
+                        <td class="text-red-600"><?= $subp['weak_count'] ?></td>
+                        <td class="text-amber-600"><?= $subp['at_risk_count'] ?></td>
+                        <td class="text-emerald-600"><?= $subp['prof_count'] ?></td>
+                        <td>
+                            <span class="badge badge-<?= $subComp['color'] === 'emerald' ? 'green' : $subComp['color'] ?>"><?= $subComp['label'] ?></span>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+                <?php if (empty($subjectPerformance)): ?>
+                    <tr><td colspan="8" class="text-center text-gray-400 py-6">No subject data available.</td></tr>
+                <?php endif; ?>
+            </tbody>
+        </table>
+    </div>
+</div>
+<?php endif; ?>
+
+<?php if ($role === 'guidance'): ?>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-8">
     <div class="stat-card" style="background:#eff6ff;">
         <div class="flex items-center justify-between mb-3">
-            <span class="text-sm font-medium text-gray-600">Avg. Employability Readiness</span>
+            <span class="text-sm font-medium text-gray-600">Avg. employability (WI)</span>
             <div class="w-10 h-10 rounded-lg flex items-center justify-center" style="background:#dbeafe;">
                 <i class="fas fa-briefcase" style="color:#1d4ed8;"></i>
             </div>
@@ -322,15 +475,14 @@ require_once __DIR__ . '/../includes/sidebar.php';
             </div>
         </div>
         <?php
-        $totalRecs = $pdo->query("SELECT COUNT(*) as cnt FROM career_recommendations")->fetch()['cnt'];
+        $totalRecs = $pdo->query('SELECT COUNT(*) as cnt FROM career_recommendations')->fetch()['cnt'];
         ?>
         <p class="text-3xl font-bold text-gray-800"><?= $totalRecs ?></p>
         <p class="text-xs text-gray-500 mt-1">Generated recommendations</p>
     </div>
 </div>
 
-<!-- Recent Career Recommendations -->
-<div class="bg-white border border-gray-200 rounded-xl overflow-hidden <?= $role === 'admin' ? '' : '' ?>">
+<div class="bg-white border border-gray-200 rounded-xl overflow-hidden">
     <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
         <h3 class="text-sm font-semibold text-gray-900">Recent Career Recommendations</h3>
         <a href="<?= BASE_URL ?>career/index.php" class="text-xs text-blue-600 hover:underline font-medium">View All</a>
@@ -352,7 +504,7 @@ require_once __DIR__ . '/../includes/sidebar.php';
                         <td class="font-medium"><?= sanitize($rec['student_name']) ?></td>
                         <td><?= sanitize($rec['strand_name'] ?? 'N/A') ?></td>
                         <td><?= sanitize($rec['recommended_strand'] ?? 'N/A') ?></td>
-                        <td class="font-semibold"><?= formatNumber($rec['employability_score']) ?></td>
+                        <td class="font-semibold"><?= $rec['employability_score'] !== null && $rec['employability_score'] !== '' ? formatNumber($rec['employability_score']) : '—' ?></td>
                         <td>
                             <?php if ($rec['strand_match']): ?>
                                 <span class="badge badge-green"><i class="fas fa-check mr-1"></i> Match</span>
@@ -363,7 +515,7 @@ require_once __DIR__ . '/../includes/sidebar.php';
                     </tr>
                 <?php endforeach; ?>
             <?php else: ?>
-                <tr><td colspan="5" class="text-center text-gray-400 py-8">No recommendations yet. <a href="<?= BASE_URL ?>career/index.php" class="text-blue-600 hover:underline">Generate now</a></td></tr>
+                <tr><td colspan="5" class="text-center text-gray-400 py-8">No recommendations yet. <a href="<?= BASE_URL ?>career/index.php" class="text-blue-600 hover:underline">Open career pathway</a></td></tr>
             <?php endif; ?>
         </tbody>
     </table>

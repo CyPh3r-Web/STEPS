@@ -1,5 +1,5 @@
 -- STEPS Database Backup
--- Date: March 03, 2026 02:45:08 PM
+-- Date: March 06, 2026 04:08:14 AM
 -- Database: steps_db
 
 SET FOREIGN_KEY_CHECKS = 0;
@@ -15,7 +15,7 @@ CREATE TABLE `activity_logs` (
   PRIMARY KEY (`id`),
   KEY `user_id` (`user_id`),
   CONSTRAINT `activity_logs_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB AUTO_INCREMENT=18 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=19 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 INSERT INTO `activity_logs` (`id`, `user_id`, `action`, `description`, `ip_address`, `created_at`) VALUES ('2', '1', 'logout', 'User logged out', '::1', '2026-03-03 21:46:07');
 INSERT INTO `activity_logs` (`id`, `user_id`, `action`, `description`, `ip_address`, `created_at`) VALUES ('3', '1', 'login', 'User logged in', '::1', '2026-03-03 21:46:20');
@@ -33,6 +33,7 @@ INSERT INTO `activity_logs` (`id`, `user_id`, `action`, `description`, `ip_addre
 INSERT INTO `activity_logs` (`id`, `user_id`, `action`, `description`, `ip_address`, `created_at`) VALUES ('15', '1', 'login', 'User logged in', '::1', '2026-03-03 22:19:45');
 INSERT INTO `activity_logs` (`id`, `user_id`, `action`, `description`, `ip_address`, `created_at`) VALUES ('16', '1', 'logout', 'User logged out', '::1', '2026-03-03 22:34:06');
 INSERT INTO `activity_logs` (`id`, `user_id`, `action`, `description`, `ip_address`, `created_at`) VALUES ('17', '1', 'login', 'User logged in', '::1', '2026-03-03 22:34:13');
+INSERT INTO `activity_logs` (`id`, `user_id`, `action`, `description`, `ip_address`, `created_at`) VALUES ('18', '1', 'restore', 'Restored from: steps_backup_2026-03-03_14-45-08.sql', '::1', '2026-03-06 12:08:06');
 
 DROP TABLE IF EXISTS `backup_logs`;
 CREATE TABLE `backup_logs` (

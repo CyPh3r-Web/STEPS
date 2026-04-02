@@ -2,7 +2,7 @@
 session_start();
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/constants.php';
-requireRole(['admin', 'teacher']);
+requireRole('teacher');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !isset($_FILES['csv_file'])) {
     header('Location: ' . BASE_URL . 'students/index.php');
@@ -66,7 +66,7 @@ $skipped = 0;
 $errors = [];
 $rowNum = 1;
 
-$insertStmt = $pdo->prepare("INSERT INTO students (lrn, first_name, last_name, middle_name, gender, birthdate, section_id, strand_id, school_year) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+$insertStmt = $pdo->prepare("INSERT INTO students (lrn, first_name, last_name, middle_name, name_suffix, gender, birthdate, section_id, strand_id, school_year) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
 $checkStmt = $pdo->prepare("SELECT id FROM students WHERE lrn = ?");
 
 while (($row = fgetcsv($handle)) !== false) {
@@ -82,6 +82,7 @@ while (($row = fgetcsv($handle)) !== false) {
     $lastName  = trim($row[$colIndex['last name']] ?? '');
     $firstName = trim($row[$colIndex['first name']] ?? '');
     $middleName = trim($row[$colIndex['middle name']] ?? '');
+    $nameSuffix = array_key_exists('name suffix', $colIndex) ? trim($row[$colIndex['name suffix']] ?? '') : '';
     $gender    = trim($row[$colIndex['gender']] ?? '');
     $birthdate = array_key_exists('birthdate', $colIndex) ? trim($row[$colIndex['birthdate']] ?? '') : '';
     $sectionName = strtolower(trim($row[$colIndex['section name']] ?? ''));
@@ -118,6 +119,16 @@ while (($row = fgetcsv($handle)) !== false) {
 
     $sectionId = $sectionMap[$sectionName] ?? null;
     $strandId = $strandMap[$strandCode] ?? null;
+
+    // Auto-determine strand based on section's grade level (JHS = no strand)
+    if ($sectionId) {
+        $secGradeStmt = $pdo->prepare("SELECT grade_level FROM sections WHERE id = ?");
+        $secGradeStmt->execute([$sectionId]);
+        $secGrade = $secGradeStmt->fetchColumn();
+        if ($secGrade && $secGrade >= 7 && $secGrade <= 10) {
+            $strandId = null; // Force no strand for JHS
+        }
+    }
 
     if ($sectionName && !$sectionId) {
         $errors[] = "Row $rowNum ($lrn): Section \"$sectionName\" not found, student added without section.";
@@ -161,6 +172,7 @@ while (($row = fgetcsv($handle)) !== false) {
             sanitize($firstName),
             sanitize($lastName),
             sanitize($middleName) ?: null,
+            sanitize($nameSuffix) ?: null,
             $gender,
             $birthdateFormatted,
             $sectionId,

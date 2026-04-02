@@ -1,7 +1,7 @@
 <?php
 $pageTitle = 'Class Performance Summary';
 require_once __DIR__ . '/../includes/header.php';
-requireRole(['admin', 'teacher']);
+requireRole('teacher');
 
 $sectionFilter = $_GET['section'] ?? '';
 $sections = $pdo->query("SELECT * FROM sections ORDER BY grade_level, section_name")->fetchAll();
@@ -62,7 +62,7 @@ $quarterData = $quarterPerf->fetchAll();
 if ($sectionFilter) {
     $reportData = json_encode(['section' => $sectionFilter, 'type' => 'class_performance', 'date' => date('Y-m-d')]);
     $save = $pdo->prepare("INSERT INTO diagnostic_reports (section_id, report_type, report_data, generated_by, school_year) VALUES (?, 'class_performance', ?, ?, ?)");
-    $save->execute([$sectionFilter, $reportData, $_SESSION['user_id'], SCHOOL_YEAR]);
+    $save->execute([$sectionFilter, $reportData, $_SESSION['user_id'], effectiveSchoolYear()]);
 }
 
 require_once __DIR__ . '/../includes/sidebar.php';

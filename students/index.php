@@ -1,7 +1,7 @@
 <?php
 $pageTitle = 'Students';
 require_once __DIR__ . '/../includes/header.php';
-requireLogin();
+requireRole(['teacher', 'guidance']);
 
 $sections = $pdo->query("SELECT * FROM sections ORDER BY grade_level, section_name")->fetchAll();
 $strands = $pdo->query("SELECT * FROM strands ORDER BY strand_name")->fetchAll();
@@ -22,11 +22,22 @@ if (!$isGuidance && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actio
     $firstName = sanitize($_POST['first_name']);
     $lastName = sanitize($_POST['last_name']);
     $middleName = sanitize($_POST['middle_name']);
+    $nameSuffix = sanitize($_POST['name_suffix'] ?? '');
     $gender = sanitize($_POST['gender']);
     $birthdate = sanitize($_POST['birthdate']);
     $sectionId = $_POST['section_id'] ?: null;
     $strandId = $_POST['strand_id'] ?: null;
     $schoolYear = sanitize($_POST['school_year']);
+
+    // Auto-determine strand based on section's grade level (JHS = no strand)
+    if ($sectionId) {
+        $secCheck = $pdo->prepare("SELECT grade_level FROM sections WHERE id = ?");
+        $secCheck->execute([$sectionId]);
+        $secData = $secCheck->fetch();
+        if ($secData && $secData['grade_level'] >= 7 && $secData['grade_level'] <= 10) {
+            $strandId = null; // Force no strand for JHS
+        }
+    }
 
     if (empty($lrn) || empty($firstName) || empty($lastName) || empty($gender)) {
         $error = 'Please fill in all required fields.';
@@ -38,8 +49,8 @@ if (!$isGuidance && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actio
             $error = 'A student with this LRN already exists.';
             $openModal = 'add';
         } else {
-            $stmt = $pdo->prepare("INSERT INTO students (lrn, first_name, last_name, middle_name, gender, birthdate, section_id, strand_id, school_year) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$lrn, $firstName, $lastName, $middleName, $gender, $birthdate ?: null, $sectionId, $strandId, $schoolYear]);
+            $stmt = $pdo->prepare("INSERT INTO students (lrn, first_name, last_name, middle_name, name_suffix, gender, birthdate, section_id, strand_id, school_year) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$lrn, $firstName, $lastName, $middleName, $nameSuffix, $gender, $birthdate ?: null, $sectionId, $strandId, $schoolYear]);
             header('Location: ' . BASE_URL . 'students/index.php?msg=added');
             exit;
         }
@@ -53,11 +64,22 @@ if (!$isGuidance && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actio
     $firstName = sanitize($_POST['first_name']);
     $lastName = sanitize($_POST['last_name']);
     $middleName = sanitize($_POST['middle_name']);
+    $nameSuffix = sanitize($_POST['name_suffix'] ?? '');
     $gender = sanitize($_POST['gender']);
     $birthdate = sanitize($_POST['birthdate']);
     $sectionId = $_POST['section_id'] ?: null;
     $strandId = $_POST['strand_id'] ?: null;
     $schoolYear = sanitize($_POST['school_year']);
+
+    // Auto-determine strand based on section's grade level (JHS = no strand)
+    if ($sectionId) {
+        $secCheck = $pdo->prepare("SELECT grade_level FROM sections WHERE id = ?");
+        $secCheck->execute([$sectionId]);
+        $secData = $secCheck->fetch();
+        if ($secData && $secData['grade_level'] >= 7 && $secData['grade_level'] <= 10) {
+            $strandId = null; // Force no strand for JHS
+        }
+    }
 
     if (empty($lrn) || empty($firstName) || empty($lastName) || empty($gender)) {
         $error = 'Please fill in all required fields.';
@@ -71,8 +93,8 @@ if (!$isGuidance && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actio
             $editId = $id;
             $openModal = 'edit';
         } else {
-            $stmt = $pdo->prepare("UPDATE students SET lrn=?, first_name=?, last_name=?, middle_name=?, gender=?, birthdate=?, section_id=?, strand_id=?, school_year=? WHERE id=?");
-            $stmt->execute([$lrn, $firstName, $lastName, $middleName, $gender, $birthdate ?: null, $sectionId, $strandId, $schoolYear, $id]);
+            $stmt = $pdo->prepare("UPDATE students SET lrn=?, first_name=?, last_name=?, middle_name=?, name_suffix=?, gender=?, birthdate=?, section_id=?, strand_id=?, school_year=? WHERE id=?");
+            $stmt->execute([$lrn, $firstName, $lastName, $middleName, $nameSuffix, $gender, $birthdate ?: null, $sectionId, $strandId, $schoolYear, $id]);
             header('Location: ' . BASE_URL . 'students/index.php?msg=updated');
             exit;
         }
@@ -97,6 +119,20 @@ if ($editId) {
 }
 
 $statusFilter = $_GET['status'] ?? '';
+$currentUserId = $_SESSION['user_id'] ?? 0;
+$userRole = $_SESSION['role'] ?? '';
+
+// For teachers: get their assigned sections
+$teacherSectionIds = [];
+if ($userRole === 'teacher') {
+    try {
+        $teacherSectionsStmt = $pdo->prepare("SELECT section_id FROM teacher_sections WHERE teacher_id = ? AND school_year = ?");
+        $teacherSectionsStmt->execute([$currentUserId, effectiveSchoolYear()]);
+        $teacherSectionIds = $teacherSectionsStmt->fetchAll(PDO::FETCH_COLUMN);
+    } catch (PDOException $e) {
+        // Table may not exist yet, ignore
+    }
+}
 
 // Query students list with average grade
 $query = "SELECT s.*, sec.section_name, sec.grade_level, st.strand_code, st.strand_name,
@@ -106,6 +142,16 @@ $query = "SELECT s.*, sec.section_name, sec.grade_level, st.strand_code, st.stra
           LEFT JOIN strands st ON s.strand_id = st.id
           WHERE s.status = 'active'";
 $params = [];
+
+// For teachers: filter by their assigned sections
+if ($userRole === 'teacher' && !empty($teacherSectionIds)) {
+    $placeholders = implode(',', array_fill(0, count($teacherSectionIds), '?'));
+    $query .= " AND s.section_id IN ($placeholders)";
+    $params = array_merge($params, $teacherSectionIds);
+} elseif ($userRole === 'teacher' && empty($teacherSectionIds)) {
+    // Teacher has no assigned sections - show no students
+    $query .= " AND 1=0";
+}
 
 if ($search) {
     $query .= " AND (s.first_name LIKE ? OR s.last_name LIKE ? OR s.lrn LIKE ?)";
@@ -137,6 +183,10 @@ $studentsWithGrades = array_filter($studentsForStats, fn($s) => $s['avg_grade'] 
 $weakStudents = count(array_filter($studentsWithGrades, fn($s) => getCompetencyLevel($s['avg_grade'])['level'] === 'weak'));
 $atRiskStudents = count(array_filter($studentsWithGrades, fn($s) => getCompetencyLevel($s['avg_grade'])['level'] === 'at_risk'));
 $profStudents = count(array_filter($studentsWithGrades, fn($s) => getCompetencyLevel($s['avg_grade'])['level'] === 'proficient'));
+
+// Gender statistics
+$maleStudents = count(array_filter($studentsForStats, fn($s) => strtolower($s['gender']) === 'male'));
+$femaleStudents = count(array_filter($studentsForStats, fn($s) => strtolower($s['gender']) === 'female'));
 
 require_once __DIR__ . '/../includes/sidebar.php';
 ?>
@@ -201,6 +251,18 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 <?php endif; ?>
 
+<?php if ($userRole === 'teacher' && empty($teacherSectionIds)): ?>
+<div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
+    <div class="flex items-start gap-3">
+        <i class="fas fa-exclamation-triangle text-amber-600 mt-0.5"></i>
+        <div>
+            <p class="text-sm font-medium text-amber-800">No Section Assignments</p>
+            <p class="text-xs text-amber-700 mt-1">You currently have no sections assigned. Please contact the administrator to be assigned to a section.</p>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+
 <!-- Filters -->
 <div class="bg-white border border-gray-200 rounded-xl p-5 mb-6">
     <form method="GET" class="flex flex-wrap items-end gap-4">
@@ -212,15 +274,28 @@ document.addEventListener('DOMContentLoaded', function() {
             <label class="form-label">Section</label>
             <select name="section" class="form-select">
                 <option value="">All Sections</option>
-                <?php foreach ($sections as $sec): ?>
+                <?php 
+                // For teachers, only show their assigned sections
+                $displaySections = ($userRole === 'teacher' && !empty($teacherSectionIds)) 
+                    ? array_filter($sections, fn($sec) => in_array($sec['id'], $teacherSectionIds))
+                    : $sections;
+                foreach ($displaySections as $sec): 
+                ?>
                     <option value="<?= $sec['id'] ?>" <?= $sectionFilter == $sec['id'] ? 'selected' : '' ?>><?= sanitize($sec['section_name']) ?></option>
                 <?php endforeach; ?>
             </select>
         </div>
         <div class="w-48">
             <label class="form-label">Strand</label>
-            <select name="strand" class="form-select">
+            <input type="text" name="strand_search" id="strand_search" class="form-input" placeholder="Type to search strands..." value="<?= isset($_GET['strand_search']) ? sanitize($_GET['strand_search']) : '' ?>" list="strandList" autocomplete="off">
+            <datalist id="strandList">
                 <option value="">All Strands</option>
+                <?php foreach ($strands as $st): ?>
+                    <option value="<?= sanitize($st['strand_code']) ?>"><?= sanitize($st['strand_code'] . ' - ' . $st['strand_name']) ?></option>
+                <?php endforeach; ?>
+            </datalist>
+            <select name="strand" id="strand_select" class="form-select mt-2" onchange="document.getElementById('strand_search').value = this.options[this.selectedIndex].text.split(' - ')[0]">
+                <option value="">Or select from list</option>
                 <?php foreach ($strands as $st): ?>
                     <option value="<?= $st['id'] ?>" <?= $strandFilter == $st['id'] ? 'selected' : '' ?>><?= sanitize($st['strand_code']) ?></option>
                 <?php endforeach; ?>
@@ -289,6 +364,30 @@ $filterBase = array_filter(['search' => $search, 'section' => $sectionFilter, 's
     </a>
 </div>
 
+<!-- Gender Statistics Summary -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
+    <div class="stat-card bg-blue-50">
+        <div class="flex items-center justify-between mb-3">
+            <span class="text-sm font-medium text-gray-600">Male Students</span>
+            <div class="w-10 h-10 rounded-lg flex items-center justify-center bg-blue-100">
+                <i class="fas fa-male text-blue-600"></i>
+            </div>
+        </div>
+        <p class="text-3xl font-bold text-gray-800"><?= $maleStudents ?></p>
+        <p class="text-xs text-gray-400 mt-1"><?= count($studentsForStats) > 0 ? round(($maleStudents / count($studentsForStats)) * 100, 1) : 0 ?>% of total</p>
+    </div>
+    <div class="stat-card bg-pink-50">
+        <div class="flex items-center justify-between mb-3">
+            <span class="text-sm font-medium text-gray-600">Female Students</span>
+            <div class="w-10 h-10 rounded-lg flex items-center justify-center bg-pink-100">
+                <i class="fas fa-female text-pink-600"></i>
+            </div>
+        </div>
+        <p class="text-3xl font-bold text-gray-800"><?= $femaleStudents ?></p>
+        <p class="text-xs text-gray-400 mt-1"><?= count($studentsForStats) > 0 ? round(($femaleStudents / count($studentsForStats)) * 100, 1) : 0 ?>% of total</p>
+    </div>
+</div>
+
 <div class="flex items-center justify-between mb-4">
     <div class="flex items-center gap-3">
         <p class="text-sm text-gray-500"><?= count($students) ?> student(s) found</p>
@@ -322,8 +421,10 @@ $filterBase = array_filter(['search' => $search, 'section' => $sectionFilter, 's
                     <th>Section</th>
                     <th>Grade Level</th>
                     <th>Strand</th>
+                    <?php if (!$isGuidance): ?>
                     <th>Avg</th>
                     <th>Status</th>
+                    <?php endif; ?>
                     <th>Actions</th>
                 </tr>
             </thead>
@@ -337,6 +438,7 @@ $filterBase = array_filter(['search' => $search, 'section' => $sectionFilter, 's
                         <td><?= sanitize($s['section_name'] ?? 'N/A') ?></td>
                         <td><?= $s['grade_level'] ?? 'N/A' ?></td>
                         <td><span class="badge badge-blue"><?= sanitize($s['strand_code'] ?? 'N/A') ?></span></td>
+                        <?php if (!$isGuidance): ?>
                         <td class="font-semibold"><?= $s['avg_grade'] !== null ? formatNumber($s['avg_grade']) : '<span class="text-gray-300">—</span>' ?></td>
                         <td>
                             <?php if ($comp): ?>
@@ -347,6 +449,7 @@ $filterBase = array_filter(['search' => $search, 'section' => $sectionFilter, 's
                                 <span class="text-gray-300 text-xs">No grades</span>
                             <?php endif; ?>
                         </td>
+                        <?php endif; ?>
                         <td>
                             <div class="flex items-center gap-2">
                                 <a href="<?= BASE_URL ?>students/view.php?id=<?= $s['id'] ?>" class="text-blue-600 hover:text-blue-800" title="View"><i class="fas fa-eye"></i></a>
@@ -362,7 +465,7 @@ $filterBase = array_filter(['search' => $search, 'section' => $sectionFilter, 's
                     </tr>
                 <?php endforeach; ?>
                 <?php if (empty($students)): ?>
-                    <tr><td colspan="9" class="text-center text-gray-400 py-8">No students found.</td></tr>
+                    <tr><td colspan="<?= $isGuidance ? 7 : 9 ?>" class="text-center text-gray-400 py-8">No students found.</td></tr>
                 <?php endif; ?>
             </tbody>
         </table>
@@ -387,19 +490,31 @@ $filterBase = array_filter(['search' => $search, 'section' => $sectionFilter, 's
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div class="md:col-span-2">
                     <label class="form-label">LRN <span class="text-red-500">*</span></label>
-                    <input type="text" name="lrn" class="form-input" required maxlength="20" placeholder="Learner Reference Number" value="<?= $openModal === 'add' ? sanitize($lrn ?? '') : '' ?>">
+                    <input type="text" name="lrn" class="form-input" required maxlength="20" inputmode="numeric" pattern="[0-9]*" oninput="this.value = this.value.replace(/[^0-9]/g, '')" placeholder="Learner Reference Number" value="<?= $openModal === 'add' ? sanitize($lrn ?? '') : '' ?>">
                 </div>
                 <div>
                     <label class="form-label">Last Name <span class="text-red-500">*</span></label>
-                    <input type="text" name="last_name" class="form-input" required value="<?= $openModal === 'add' ? sanitize($lastName ?? '') : '' ?>">
+                    <input type="text" name="last_name" class="form-input" required value="<?= $openModal === 'add' ? sanitize($lastName ?? '') : '' ?>" oninput="this.value = this.value.replace(/[^a-zA-Z\s]/g, '')" placeholder="Letters only">
                 </div>
                 <div>
                     <label class="form-label">First Name <span class="text-red-500">*</span></label>
-                    <input type="text" name="first_name" class="form-input" required value="<?= $openModal === 'add' ? sanitize($firstName ?? '') : '' ?>">
+                    <input type="text" name="first_name" class="form-input" required value="<?= $openModal === 'add' ? sanitize($firstName ?? '') : '' ?>" oninput="this.value = this.value.replace(/[^a-zA-Z\s]/g, '')" placeholder="Letters only">
                 </div>
                 <div>
                     <label class="form-label">Middle Name</label>
-                    <input type="text" name="middle_name" class="form-input" value="<?= $openModal === 'add' ? sanitize($middleName ?? '') : '' ?>">
+                    <input type="text" name="middle_name" class="form-input" value="<?= $openModal === 'add' ? sanitize($middleName ?? '') : '' ?>" oninput="this.value = this.value.replace(/[^a-zA-Z\s]/g, '')" placeholder="Optional">
+                </div>
+                <div>
+                    <label class="form-label">Name Suffix <span class="text-gray-400 font-normal">(Optional)</span></label>
+                    <select name="name_suffix" class="form-select">
+                        <option value="">None</option>
+                        <option value="Jr." <?= ($openModal === 'add' && ($nameSuffix ?? '') === 'Jr.') ? 'selected' : '' ?>>Jr.</option>
+                        <option value="Sr." <?= ($openModal === 'add' && ($nameSuffix ?? '') === 'Sr.') ? 'selected' : '' ?>>Sr.</option>
+                        <option value="II" <?= ($openModal === 'add' && ($nameSuffix ?? '') === 'II') ? 'selected' : '' ?>>II</option>
+                        <option value="III" <?= ($openModal === 'add' && ($nameSuffix ?? '') === 'III') ? 'selected' : '' ?>>III</option>
+                        <option value="IV" <?= ($openModal === 'add' && ($nameSuffix ?? '') === 'IV') ? 'selected' : '' ?>>IV</option>
+                        <option value="V" <?= ($openModal === 'add' && ($nameSuffix ?? '') === 'V') ? 'selected' : '' ?>>V</option>
+                    </select>
                 </div>
                 <div>
                     <label class="form-label">Gender <span class="text-red-500">*</span></label>
@@ -415,14 +530,14 @@ $filterBase = array_filter(['search' => $search, 'section' => $sectionFilter, 's
                 </div>
                 <div>
                     <label class="form-label">Section</label>
-                    <select name="section_id" class="form-select">
+                    <select name="section_id" id="add_section_id" class="form-select" onchange="updateStrandField('add_section_id', 'add_strand_container')">
                         <option value="">Select Section</option>
                         <?php foreach ($sections as $sec): ?>
-                            <option value="<?= $sec['id'] ?>"><?= sanitize($sec['section_name']) ?> (G<?= $sec['grade_level'] ?>)</option>
+                            <option value="<?= $sec['id'] ?>" data-grade="<?= $sec['grade_level'] ?>"><?= sanitize($sec['section_name']) ?> (G<?= $sec['grade_level'] ?>)</option>
                         <?php endforeach; ?>
                     </select>
                 </div>
-                <div>
+                <div id="add_strand_container">
                     <label class="form-label">Strand</label>
                     <select name="strand_id" class="form-select">
                         <option value="">Select Strand</option>
@@ -433,7 +548,7 @@ $filterBase = array_filter(['search' => $search, 'section' => $sectionFilter, 's
                 </div>
                 <div>
                     <label class="form-label">School Year <span class="text-red-500">*</span></label>
-                    <input type="text" name="school_year" class="form-input" required value="<?= SCHOOL_YEAR ?>" placeholder="e.g., 2025-2026">
+                    <input type="text" name="school_year" class="form-input" required value="<?= effectiveSchoolYear() ?>" placeholder="e.g., 2025-2026">
                 </div>
             </div>
             <div class="flex items-center justify-end gap-4 mt-6 pt-5 border-t border-gray-200">
@@ -462,19 +577,31 @@ $filterBase = array_filter(['search' => $search, 'section' => $sectionFilter, 's
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div class="md:col-span-2">
                     <label class="form-label">LRN <span class="text-red-500">*</span></label>
-                    <input type="text" name="lrn" id="edit_lrn" class="form-input" required maxlength="20" value="<?= sanitize($editStudent['lrn'] ?? '') ?>">
+                    <input type="text" name="lrn" id="edit_lrn" class="form-input" required maxlength="20" inputmode="numeric" pattern="[0-9]*" oninput="this.value = this.value.replace(/[^0-9]/g, '')" value="<?= sanitize($editStudent['lrn'] ?? '') ?>">
                 </div>
                 <div>
                     <label class="form-label">Last Name <span class="text-red-500">*</span></label>
-                    <input type="text" name="last_name" id="edit_last_name" class="form-input" required value="<?= sanitize($editStudent['last_name'] ?? '') ?>">
+                    <input type="text" name="last_name" id="edit_last_name" class="form-input" required value="<?= sanitize($editStudent['last_name'] ?? '') ?>" oninput="this.value = this.value.replace(/[^a-zA-Z\s]/g, '')">
                 </div>
                 <div>
                     <label class="form-label">First Name <span class="text-red-500">*</span></label>
-                    <input type="text" name="first_name" id="edit_first_name" class="form-input" required value="<?= sanitize($editStudent['first_name'] ?? '') ?>">
+                    <input type="text" name="first_name" id="edit_first_name" class="form-input" required value="<?= sanitize($editStudent['first_name'] ?? '') ?>" oninput="this.value = this.value.replace(/[^a-zA-Z\s]/g, '')">
                 </div>
                 <div>
                     <label class="form-label">Middle Name</label>
-                    <input type="text" name="middle_name" id="edit_middle_name" class="form-input" value="<?= sanitize($editStudent['middle_name'] ?? '') ?>">
+                    <input type="text" name="middle_name" id="edit_middle_name" class="form-input" value="<?= sanitize($editStudent['middle_name'] ?? '') ?>" oninput="this.value = this.value.replace(/[^a-zA-Z\s]/g, '')" placeholder="Optional">
+                </div>
+                <div>
+                    <label class="form-label">Name Suffix <span class="text-gray-400 font-normal">(Optional)</span></label>
+                    <select name="name_suffix" id="edit_name_suffix" class="form-select">
+                        <option value="">None</option>
+                        <option value="Jr." <?= ($editStudent['name_suffix'] ?? '') === 'Jr.' ? 'selected' : '' ?>>Jr.</option>
+                        <option value="Sr." <?= ($editStudent['name_suffix'] ?? '') === 'Sr.' ? 'selected' : '' ?>>Sr.</option>
+                        <option value="II" <?= ($editStudent['name_suffix'] ?? '') === 'II' ? 'selected' : '' ?>>II</option>
+                        <option value="III" <?= ($editStudent['name_suffix'] ?? '') === 'III' ? 'selected' : '' ?>>III</option>
+                        <option value="IV" <?= ($editStudent['name_suffix'] ?? '') === 'IV' ? 'selected' : '' ?>>IV</option>
+                        <option value="V" <?= ($editStudent['name_suffix'] ?? '') === 'V' ? 'selected' : '' ?>>V</option>
+                    </select>
                 </div>
                 <div>
                     <label class="form-label">Gender <span class="text-red-500">*</span></label>
@@ -489,14 +616,14 @@ $filterBase = array_filter(['search' => $search, 'section' => $sectionFilter, 's
                 </div>
                 <div>
                     <label class="form-label">Section</label>
-                    <select name="section_id" id="edit_section_id" class="form-select">
+                    <select name="section_id" id="edit_section_id" class="form-select" onchange="updateStrandField('edit_section_id', 'edit_strand_container')">
                         <option value="">Select Section</option>
                         <?php foreach ($sections as $sec): ?>
-                            <option value="<?= $sec['id'] ?>" <?= ($editStudent['section_id'] ?? '') == $sec['id'] ? 'selected' : '' ?>><?= sanitize($sec['section_name']) ?> (G<?= $sec['grade_level'] ?>)</option>
+                            <option value="<?= $sec['id'] ?>" data-grade="<?= $sec['grade_level'] ?>" <?= ($editStudent['section_id'] ?? '') == $sec['id'] ? 'selected' : '' ?>><?= sanitize($sec['section_name']) ?> (G<?= $sec['grade_level'] ?>)</option>
                         <?php endforeach; ?>
                     </select>
                 </div>
-                <div>
+                <div id="edit_strand_container">
                     <label class="form-label">Strand</label>
                     <select name="strand_id" id="edit_strand_id" class="form-select">
                         <option value="">Select Strand</option>
@@ -507,7 +634,7 @@ $filterBase = array_filter(['search' => $search, 'section' => $sectionFilter, 's
                 </div>
                 <div>
                     <label class="form-label">School Year <span class="text-red-500">*</span></label>
-                    <input type="text" name="school_year" id="edit_school_year" class="form-input" required value="<?= sanitize($editStudent['school_year'] ?? SCHOOL_YEAR) ?>">
+                    <input type="text" name="school_year" id="edit_school_year" class="form-input" required value="<?= sanitize($editStudent['school_year'] ?? effectiveSchoolYear()) ?>">
                 </div>
             </div>
             <div class="flex items-center justify-end gap-4 mt-6 pt-5 border-t border-gray-200">
@@ -560,6 +687,7 @@ $filterBase = array_filter(['search' => $search, 'section' => $sectionFilter, 's
                         <tr class="border-b border-gray-100"><td class="py-1.5 pr-3 font-mono font-semibold">Last Name</td><td class="pr-3"><span class="text-red-500">Yes</span></td><td>Dela Cruz</td></tr>
                         <tr class="border-b border-gray-100"><td class="py-1.5 pr-3 font-mono font-semibold">First Name</td><td class="pr-3"><span class="text-red-500">Yes</span></td><td>Juan</td></tr>
                         <tr class="border-b border-gray-100"><td class="py-1.5 pr-3 font-mono font-semibold">Middle Name</td><td class="pr-3">No</td><td>Santos</td></tr>
+                        <tr class="border-b border-gray-100"><td class="py-1.5 pr-3 font-mono font-semibold">Name Suffix</td><td class="pr-3">No</td><td>Jr., Sr., III</td></tr>
                         <tr class="border-b border-gray-100"><td class="py-1.5 pr-3 font-mono font-semibold">Gender</td><td class="pr-3"><span class="text-red-500">Yes</span></td><td>Male / Female</td></tr>
                         <tr class="border-b border-gray-100"><td class="py-1.5 pr-3 font-mono font-semibold">Birthdate</td><td class="pr-3">No</td><td>2008-03-15</td></tr>
                         <tr class="border-b border-gray-100"><td class="py-1.5 pr-3 font-mono font-semibold">Section Name</td><td class="pr-3">No</td><td>Section A</td></tr>
@@ -655,11 +783,32 @@ foreach ($students as $s) {
         'first_name' => $s['first_name'], 'last_name' => $s['last_name'],
         'middle_name' => $s['middle_name'] ?? '', 'gender' => $s['gender'],
         'birthdate' => $s['birthdate'] ?? '', 'section_id' => $s['section_id'] ?? '',
-        'strand_id' => $s['strand_id'] ?? '', 'school_year' => $s['school_year']
+        'strand_id' => $s['strand_id'] ?? '', 'school_year' => $s['school_year'],
+        'name_suffix' => $s['name_suffix'] ?? ''
     ];
 }
 ?>
 const studentData = <?= json_encode($studentDataMap) ?>;
+
+// Section grade levels for strand field visibility
+const sectionGradeLevels = <?= json_encode(array_column($sections, 'grade_level', 'id')) ?>;
+
+function updateStrandField(sectionSelectId, strandContainerId) {
+    const sectionSelect = document.getElementById(sectionSelectId);
+    const strandContainer = document.getElementById(strandContainerId);
+    if (!sectionSelect || !strandContainer) return;
+    
+    const selectedOption = sectionSelect.options[sectionSelect.selectedIndex];
+    const gradeLevel = selectedOption ? parseInt(selectedOption.getAttribute('data-grade')) : 0;
+    
+    // Hide strand for JHS (Grades 7-10), show for SHS (Grades 11-12)
+    if (gradeLevel >= 7 && gradeLevel <= 10) {
+        strandContainer.style.display = 'none';
+        strandContainer.querySelector('select').value = ''; // Clear strand selection
+    } else {
+        strandContainer.style.display = 'block';
+    }
+}
 
 function loadEditStudent(id) {
     const s = studentData[id];
@@ -674,13 +823,15 @@ function loadEditStudent(id) {
     document.getElementById('edit_section_id').value = s.section_id;
     document.getElementById('edit_strand_id').value = s.strand_id;
     document.getElementById('edit_school_year').value = s.school_year;
+    document.getElementById('edit_name_suffix').value = s.name_suffix || '';
+    updateStrandField('edit_section_id', 'edit_strand_container');
     openModal('editStudentModal');
 }
 
 <?php if ($openModal === 'add'): ?>
-document.addEventListener('DOMContentLoaded', function() { openModal('addStudentModal'); });
+document.addEventListener('DOMContentLoaded', function() { openModal('addStudentModal'); updateStrandField('add_section_id', 'add_strand_container'); });
 <?php elseif ($openModal === 'edit'): ?>
-document.addEventListener('DOMContentLoaded', function() { openModal('editStudentModal'); });
+document.addEventListener('DOMContentLoaded', function() { openModal('editStudentModal'); updateStrandField('edit_section_id', 'edit_strand_container'); });
 <?php endif; ?>
 </script>
 <?php endif; ?>

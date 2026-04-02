@@ -1,7 +1,7 @@
 <?php
 $pageTitle = 'Section Report';
 require_once __DIR__ . '/../includes/header.php';
-requireLogin();
+requireRole(['teacher', 'guidance']);
 
 $sections = $pdo->query("SELECT * FROM sections ORDER BY grade_level, section_name")->fetchAll();
 $sectionId = $_GET['section_id'] ?? '';
@@ -29,7 +29,7 @@ if ($sectionId) {
             'date' => date('Y-m-d H:i:s')
         ]);
         $saveReport = $pdo->prepare("INSERT INTO diagnostic_reports (section_id, report_type, report_data, generated_by, school_year) VALUES (?, 'section', ?, ?, ?)");
-        $saveReport->execute([$sectionId, $reportData, $_SESSION['user_id'], SCHOOL_YEAR]);
+        $saveReport->execute([$sectionId, $reportData, $_SESSION['user_id'], effectiveSchoolYear()]);
     }
 }
 
@@ -76,7 +76,7 @@ require_once __DIR__ . '/../includes/sidebar.php';
     <div class="bg-white border border-gray-200 rounded-xl p-8">
         <div class="text-center mb-6 pb-6 border-b border-gray-200">
             <h2 class="text-xl font-bold text-gray-900">SECTION DIAGNOSTIC REPORT</h2>
-            <p class="text-sm text-gray-500"><?= sanitize($section['section_name']) ?> — Grade <?= $section['grade_level'] ?> | S.Y. <?= SCHOOL_YEAR ?></p>
+            <p class="text-sm text-gray-500"><?= sanitize($section['section_name']) ?> — Grade <?= $section['grade_level'] ?> | S.Y. <?= sanitize(effectiveSchoolYear()) ?></p>
         </div>
 
         <div class="grid grid-cols-2 md:grid-cols-4 gap-5 mb-6">

@@ -23,3 +23,11 @@ function getConnection() {
 }
 
 $pdo = getConnection();
+
+$GLOBALS['steps_settings'] = [];
+try {
+    $GLOBALS['steps_settings'] = $pdo->query('SELECT setting_key, setting_value FROM system_settings')
+        ->fetchAll(PDO::FETCH_KEY_PAIR);
+} catch (PDOException $e) {
+    $GLOBALS['steps_settings'] = [];
+}

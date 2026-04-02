@@ -1,7 +1,7 @@
 <?php
 $pageTitle = 'Edit Student';
 require_once __DIR__ . '/../includes/header.php';
-requireLogin();
+requireRole('teacher');
 
 $id = $_GET['id'] ?? 0;
 $stmt = $pdo->prepare("SELECT * FROM students WHERE id = ?");
@@ -26,6 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $firstName = sanitize($_POST['first_name']);
     $lastName = sanitize($_POST['last_name']);
     $middleName = sanitize($_POST['middle_name']);
+    $nameSuffix = sanitize($_POST['name_suffix'] ?? '');
     $gender = sanitize($_POST['gender']);
     $birthdate = sanitize($_POST['birthdate']);
     $sectionId = $_POST['section_id'] ?: null;
@@ -40,8 +41,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($check->fetch()) {
             $error = 'A different student with this LRN already exists.';
         } else {
-            $stmt = $pdo->prepare("UPDATE students SET lrn=?, first_name=?, last_name=?, middle_name=?, gender=?, birthdate=?, section_id=?, strand_id=?, school_year=? WHERE id=?");
-            $stmt->execute([$lrn, $firstName, $lastName, $middleName, $gender, $birthdate ?: null, $sectionId, $strandId, $schoolYear, $id]);
+            $stmt = $pdo->prepare("UPDATE students SET lrn=?, first_name=?, last_name=?, middle_name=?, name_suffix=?, gender=?, birthdate=?, section_id=?, strand_id=?, school_year=? WHERE id=?");
+            $stmt->execute([$lrn, $firstName, $lastName, $middleName, $nameSuffix, $gender, $birthdate ?: null, $sectionId, $strandId, $schoolYear, $id]);
             header('Location: ' . BASE_URL . 'students/index.php?msg=updated');
             exit;
         }
@@ -51,6 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $firstName = $student['first_name'];
     $lastName = $student['last_name'];
     $middleName = $student['middle_name'];
+    $nameSuffix = $student['name_suffix'] ?? '';
     $gender = $student['gender'];
     $birthdate = $student['birthdate'];
     $sectionId = $student['section_id'];
@@ -87,19 +89,31 @@ require_once __DIR__ . '/../includes/sidebar.php';
             <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div class="md:col-span-2">
                     <label class="form-label">LRN <span class="text-red-500">*</span></label>
-                    <input type="text" name="lrn" class="form-input" required maxlength="20" value="<?= sanitize($lrn) ?>">
+                    <input type="text" name="lrn" class="form-input" required maxlength="20" inputmode="numeric" pattern="[0-9]*" oninput="this.value = this.value.replace(/[^0-9]/g, '')" value="<?= sanitize($lrn) ?>">
                 </div>
                 <div>
                     <label class="form-label">Last Name <span class="text-red-500">*</span></label>
-                    <input type="text" name="last_name" class="form-input" required value="<?= sanitize($lastName) ?>">
+                    <input type="text" name="last_name" class="form-input" required value="<?= sanitize($lastName) ?>" oninput="this.value = this.value.replace(/[^a-zA-Z\s]/g, '')">
                 </div>
                 <div>
                     <label class="form-label">First Name <span class="text-red-500">*</span></label>
-                    <input type="text" name="first_name" class="form-input" required value="<?= sanitize($firstName) ?>">
+                    <input type="text" name="first_name" class="form-input" required value="<?= sanitize($firstName) ?>" oninput="this.value = this.value.replace(/[^a-zA-Z\s]/g, '')">
                 </div>
                 <div>
                     <label class="form-label">Middle Name</label>
-                    <input type="text" name="middle_name" class="form-input" value="<?= sanitize($middleName) ?>">
+                    <input type="text" name="middle_name" id="edit_middle_name" class="form-input" value="<?= sanitize($middleName) ?>" oninput="this.value = this.value.replace(/[^a-zA-Z\s]/g, '')" placeholder="Optional">
+                </div>
+                <div>
+                    <label class="form-label">Name Suffix <span class="text-gray-400 font-normal">(Optional)</span></label>
+                    <select name="name_suffix" id="edit_name_suffix" class="form-select">
+                        <option value="">None</option>
+                        <option value="Jr." <?= $nameSuffix === 'Jr.' ? 'selected' : '' ?>>Jr.</option>
+                        <option value="Sr." <?= $nameSuffix === 'Sr.' ? 'selected' : '' ?>>Sr.</option>
+                        <option value="II" <?= $nameSuffix === 'II' ? 'selected' : '' ?>>II</option>
+                        <option value="III" <?= $nameSuffix === 'III' ? 'selected' : '' ?>>III</option>
+                        <option value="IV" <?= $nameSuffix === 'IV' ? 'selected' : '' ?>>IV</option>
+                        <option value="V" <?= $nameSuffix === 'V' ? 'selected' : '' ?>>V</option>
+                    </select>
                 </div>
                 <div>
                     <label class="form-label">Gender <span class="text-red-500">*</span></label>
@@ -114,16 +128,16 @@ require_once __DIR__ . '/../includes/sidebar.php';
                 </div>
                 <div>
                     <label class="form-label">Section</label>
-                    <select name="section_id" class="form-select">
+                    <select name="section_id" id="section_id" class="form-select" onchange="updateStrandField()">
                         <option value="">Select Section</option>
                         <?php foreach ($sections as $sec): ?>
-                            <option value="<?= $sec['id'] ?>" <?= $sectionId == $sec['id'] ? 'selected' : '' ?>>
+                            <option value="<?= $sec['id'] ?>" data-grade="<?= $sec['grade_level'] ?>" <?= $sectionId == $sec['id'] ? 'selected' : '' ?>>
                                 <?= sanitize($sec['section_name']) ?> (G<?= $sec['grade_level'] ?>)
                             </option>
                         <?php endforeach; ?>
                     </select>
                 </div>
-                <div>
+                <div id="strand_container">
                     <label class="form-label">Strand</label>
                     <select name="strand_id" class="form-select">
                         <option value="">Select Strand</option>
@@ -149,3 +163,25 @@ require_once __DIR__ . '/../includes/sidebar.php';
 </div>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>
+
+<script>
+function updateStrandField() {
+    const sectionSelect = document.getElementById('section_id');
+    const strandContainer = document.getElementById('strand_container');
+    if (!sectionSelect || !strandContainer) return;
+    
+    const selectedOption = sectionSelect.options[sectionSelect.selectedIndex];
+    const gradeLevel = selectedOption ? parseInt(selectedOption.getAttribute('data-grade')) : 0;
+    
+    // Hide strand for JHS (Grades 7-10), show for SHS (Grades 11-12)
+    if (gradeLevel >= 7 && gradeLevel <= 10) {
+        strandContainer.style.display = 'none';
+        strandContainer.querySelector('select').value = '';
+    } else {
+        strandContainer.style.display = 'block';
+    }
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', updateStrandField);
+</script>

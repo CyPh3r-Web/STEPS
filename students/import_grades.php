@@ -2,7 +2,7 @@
 session_start();
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/constants.php';
-requireRole(['admin', 'teacher']);
+requireRole('teacher');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !isset($_FILES['csv_file'])) {
     header('Location: ' . BASE_URL . 'students/grades.php');

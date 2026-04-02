@@ -4,7 +4,7 @@ if (session_status() === PHP_SESSION_NONE) session_start();
 require_once __DIR__ . '/../config/constants.php';
 require_once __DIR__ . '/../config/database.php';
 
-requireRole(['admin', 'teacher']);
+requireRole('teacher');
 
 header('Content-Type: text/html; charset=utf-8');
 

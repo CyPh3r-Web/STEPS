@@ -1,14 +1,61 @@
 <?php
 $pageTitle = 'Manage Grades';
 require_once __DIR__ . '/../includes/header.php';
-requireRole(['teacher', 'admin']);
+requireRole('teacher');
 
 $sections = $pdo->query("SELECT * FROM sections ORDER BY grade_level, section_name")->fetchAll();
-$subjects = $pdo->query("SELECT * FROM subjects ORDER BY subject_name")->fetchAll();
 
 $sectionFilter = $_GET['section'] ?? '';
 $subjectFilter = $_GET['subject'] ?? '';
 $quarterFilter = $_GET['quarter'] ?? '';
+
+// Get teacher's assigned subjects
+$teacherId = $_SESSION['user_id'] ?? 0;
+$teacherSubjectIds = [];
+try {
+    $teacherSubjectsStmt = $pdo->prepare("SELECT subject_id FROM teacher_subjects WHERE teacher_id = ? AND school_year = ?");
+    $teacherSubjectsStmt->execute([$teacherId, effectiveSchoolYear()]);
+    $teacherSubjectIds = $teacherSubjectsStmt->fetchAll(PDO::FETCH_COLUMN);
+} catch (PDOException $e) {
+    // Table may not exist yet
+}
+
+// Filter subjects by grade level if a section is selected
+// Also filter by teacher's assigned subjects
+if ($sectionFilter) {
+    $sectionStmt = $pdo->prepare("SELECT grade_level FROM sections WHERE id = ?");
+    $sectionStmt->execute([$sectionFilter]);
+    $selectedSection = $sectionStmt->fetch();
+    
+    if ($selectedSection) {
+        $subjectParams = [$selectedSection['grade_level']];
+        $subjectQuery = "SELECT * FROM subjects WHERE (grade_level = ? OR grade_level IS NULL)";
+        
+        // Filter by teacher's assigned subjects if any exist
+        if (!empty($teacherSubjectIds)) {
+            $placeholders = implode(',', array_fill(0, count($teacherSubjectIds), '?'));
+            $subjectQuery .= " AND id IN ($placeholders)";
+            $subjectParams = array_merge($subjectParams, $teacherSubjectIds);
+        }
+        
+        $subjectQuery .= " ORDER BY subject_name";
+        $subjects = $pdo->prepare($subjectQuery);
+        $subjects->execute($subjectParams);
+        $subjects = $subjects->fetchAll();
+    } else {
+        $subjects = [];
+    }
+} else {
+    // When no section selected, still filter by teacher subjects if available
+    if (!empty($teacherSubjectIds)) {
+        $placeholders = implode(',', array_fill(0, count($teacherSubjectIds), '?'));
+        $subjects = $pdo->prepare("SELECT * FROM subjects WHERE id IN ($placeholders) ORDER BY subject_name");
+        $subjects->execute($teacherSubjectIds);
+        $subjects = $subjects->fetchAll();
+    } else {
+        $subjects = $pdo->query("SELECT * FROM subjects ORDER BY subject_name")->fetchAll();
+    }
+}
 
 $success = '';
 $error = '';
@@ -70,7 +117,7 @@ if ($sectionFilter && $subjectFilter && $quarterFilter) {
          WHERE s.section_id = ? AND s.status = 'active'
          ORDER BY s.last_name, s.first_name"
     );
-    $stmt->execute([$subjectFilter, $quarterFilter, SCHOOL_YEAR, $sectionFilter]);
+    $stmt->execute([$subjectFilter, $quarterFilter, effectiveSchoolYear(), $sectionFilter]);
     $students = $stmt->fetchAll();
 
     foreach ($students as $s) {
@@ -95,7 +142,7 @@ if ($sectionFilter) {
          WHERE s.section_id = ? AND g.school_year = ?
          ORDER BY s.last_name, s.first_name, sub.subject_name, g.quarter"
     );
-    $ovStmt->execute([$sectionFilter, SCHOOL_YEAR]);
+    $ovStmt->execute([$sectionFilter, effectiveSchoolYear()]);
     $overviewGrades = $ovStmt->fetchAll();
 }
 
@@ -155,12 +202,24 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 <?php endif; ?>
 
+<?php if (empty($teacherSubjectIds) && empty($subjects)): ?>
+<div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
+    <div class="flex items-start gap-3">
+        <i class="fas fa-exclamation-triangle text-amber-600 mt-0.5"></i>
+        <div>
+            <p class="text-sm font-medium text-amber-800">No Subject Assignments</p>
+            <p class="text-xs text-amber-700 mt-1">You currently have no subjects assigned. Please contact the administrator to be assigned to subjects.</p>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+
 <!-- Filters -->
 <div class="bg-white border border-gray-200 rounded-xl p-5 mb-6">
     <form method="GET" class="flex flex-wrap items-end gap-4">
         <div class="w-48">
             <label class="form-label">Section</label>
-            <select name="section" class="form-select" required>
+            <select name="section" id="sectionSelect" class="form-select" required onchange="filterBySection()">
                 <option value="">Select Section</option>
                 <?php foreach ($sections as $sec): ?>
                     <option value="<?= $sec['id'] ?>" <?= $sectionFilter == $sec['id'] ? 'selected' : '' ?>>
@@ -171,7 +230,7 @@ document.addEventListener('DOMContentLoaded', function() {
         </div>
         <div class="w-56">
             <label class="form-label">Subject</label>
-            <select name="subject" class="form-select" required>
+            <select name="subject" id="subjectSelect" class="form-select" required>
                 <option value="">Select Subject</option>
                 <?php foreach ($subjects as $sub): ?>
                     <option value="<?= $sub['id'] ?>" <?= $subjectFilter == $sub['id'] ? 'selected' : '' ?>>
@@ -221,7 +280,7 @@ document.addEventListener('DOMContentLoaded', function() {
         <input type="hidden" name="action" value="save_grades">
         <input type="hidden" name="subject_id" value="<?= $subjectFilter ?>">
         <input type="hidden" name="quarter" value="<?= $quarterFilter ?>">
-        <input type="hidden" name="school_year" value="<?= SCHOOL_YEAR ?>">
+        <input type="hidden" name="school_year" value="<?= effectiveSchoolYear() ?>">
 
         <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
             <div>
@@ -301,7 +360,7 @@ document.addEventListener('DOMContentLoaded', function() {
     <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
         <div>
             <h3 class="text-sm font-semibold text-gray-900">Current Grades Overview</h3>
-            <p class="text-xs text-gray-400 mt-0.5">All recorded grades for this section — School Year <?= SCHOOL_YEAR ?></p>
+            <p class="text-xs text-gray-400 mt-0.5">All recorded grades for this section — School Year <?= effectiveSchoolYear() ?></p>
         </div>
         <?php if (!empty($overviewGrades)): ?>
             <span class="text-xs text-gray-400"><?= count($overviewGrades) ?> record(s)</span>
@@ -484,6 +543,26 @@ gradeDropZone.addEventListener('drop', function(e) {
         gradeCsvInput.dispatchEvent(new Event('change'));
     }
 });
+
+function filterBySection() {
+    const sectionSelect = document.getElementById('sectionSelect');
+    const subjectSelect = document.getElementById('subjectSelect');
+    const currentUrl = new URL(window.location);
+    
+    // Update the section parameter
+    if (sectionSelect.value) {
+        currentUrl.searchParams.set('section', sectionSelect.value);
+    } else {
+        currentUrl.searchParams.delete('section');
+    }
+    
+    // Clear subject and quarter filters when section changes
+    currentUrl.searchParams.delete('subject');
+    currentUrl.searchParams.delete('quarter');
+    
+    // Reload the page
+    window.location.href = currentUrl.toString();
+}
 </script>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/constants.php';
-requireLogin();
+requireRole(['teacher', 'guidance']);
 
 $type = $_GET['type'] ?? 'dashboard';
 
@@ -12,7 +12,7 @@ switch ($type) {
         header('Content-Disposition: attachment; filename="' . $filename . '"');
 
         $output = fopen('php://output', 'w');
-        fputcsv($output, ['STEPS - Dashboard Report', 'Generated: ' . date('F d, Y h:i A'), 'S.Y. ' . SCHOOL_YEAR]);
+        fputcsv($output, ['STEPS - Dashboard Report', 'Generated: ' . date('F d, Y h:i A'), 'S.Y. ' . effectiveSchoolYear()]);
         fputcsv($output, []);
         fputcsv($output, ['Student Name', 'LRN', 'Section', 'Strand', 'Average Grade', 'Competency Level']);
 
@@ -74,20 +74,37 @@ switch ($type) {
         $output = fopen('php://output', 'w');
         fputcsv($output, ['STEPS - Career Recommendations', 'Generated: ' . date('F d, Y h:i A')]);
         fputcsv($output, []);
-        fputcsv($output, ['Student', 'Current Strand', 'Recommended Strand', 'Employability Score', 'Level', 'Strand Match', 'Courses']);
+        $isGuidance = ($_SESSION['role'] ?? '') === 'guidance';
+        if ($isGuidance) {
+            fputcsv($output, ['Student', 'Current Strand', 'Recommended Strand', 'Employability (WI)', 'Level', 'Strand Match', 'Courses']);
+        } else {
+            fputcsv($output, ['Student', 'Current Strand', 'Recommended Strand', 'Strand Match', 'Courses']);
+        }
 
         $stmt = $pdo->query("SELECT cr.*, CONCAT(s.first_name, ' ', s.last_name) as name, st.strand_code
             FROM career_recommendations cr JOIN students s ON cr.student_id = s.id
             LEFT JOIN strands st ON s.strand_id = st.id ORDER BY s.last_name");
 
         while ($row = $stmt->fetch()) {
-            $empLvl = getEmployabilityLevel($row['employability_score']);
-            fputcsv($output, [
-                $row['name'], $row['strand_code'] ?? 'N/A',
-                $row['recommended_strand'], number_format($row['employability_score'], 2),
-                $empLvl['label'], $row['strand_match'] ? 'Match' : 'Mismatch',
-                $row['recommended_courses']
-            ]);
+            $hasEmp = $row['employability_score'] !== null && $row['employability_score'] !== '';
+            $empLvl = $hasEmp ? getEmployabilityLevel((float) $row['employability_score']) : ['label' => ''];
+            if ($isGuidance) {
+                fputcsv($output, [
+                    $row['name'], $row['strand_code'] ?? 'N/A',
+                    $row['recommended_strand'],
+                    $hasEmp ? number_format((float) $row['employability_score'], 2) : '',
+                    $empLvl['label'],
+                    $row['strand_match'] ? 'Match' : 'Mismatch',
+                    $row['recommended_courses'],
+                ]);
+            } else {
+                fputcsv($output, [
+                    $row['name'], $row['strand_code'] ?? 'N/A',
+                    $row['recommended_strand'],
+                    $row['strand_match'] ? 'Match' : 'Mismatch',
+                    $row['recommended_courses'],
+                ]);
+            }
         }
 
         fclose($output);

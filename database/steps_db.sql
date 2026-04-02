@@ -1,11 +1,3 @@
--- ============================================
--- STEPS - Student Tracking & Evaluation Performance System
--- Database Schema
--- Import: mysql -u root -p < database/steps_db.sql
--- Or use phpMyAdmin: Import > Choose steps_db.sql
--- ============================================
-
-DROP DATABASE IF EXISTS steps_db;
 CREATE DATABASE steps_db;
 USE steps_db;
 
@@ -35,7 +27,8 @@ CREATE TABLE IF NOT EXISTS sections (
     adviser_id INT,
     school_year VARCHAR(20) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (adviser_id) REFERENCES users(id) ON DELETE SET NULL
+    FOREIGN KEY (adviser_id) REFERENCES users(id) ON DELETE SET NULL,
+    UNIQUE KEY unique_section (section_name, grade_level, school_year)
 ) ENGINE=InnoDB;
 
 -- ============================================
@@ -58,6 +51,7 @@ CREATE TABLE IF NOT EXISTS students (
     first_name VARCHAR(50) NOT NULL,
     last_name VARCHAR(50) NOT NULL,
     middle_name VARCHAR(50),
+    name_suffix VARCHAR(10),
     gender ENUM('Male', 'Female') NOT NULL,
     birthdate DATE,
     section_id INT,
@@ -81,7 +75,8 @@ CREATE TABLE IF NOT EXISTS subjects (
     strand_id INT,
     subject_type ENUM('core', 'specialized', 'applied', 'immersion', 'jhs_core', 'jhs_mapeh', 'jhs_tle', 'jhs_esp') NOT NULL DEFAULT 'core',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (strand_id) REFERENCES strands(id) ON DELETE SET NULL
+    FOREIGN KEY (strand_id) REFERENCES strands(id) ON DELETE SET NULL,
+    UNIQUE KEY unique_subject_code (subject_code)
 ) ENGINE=InnoDB;
 
 -- ============================================
@@ -104,6 +99,25 @@ CREATE TABLE IF NOT EXISTS grades (
 ) ENGINE=InnoDB;
 
 -- ============================================
+-- GRADE SUBJECT TEACHER REMARKS (per student, subject, school year)
+-- ============================================
+CREATE TABLE IF NOT EXISTS grade_subject_remarks (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id INT NOT NULL,
+    subject_id INT NOT NULL,
+    school_year VARCHAR(20) NOT NULL,
+    learning_gaps TEXT COMMENT 'What are the learning gaps?',
+    reinforcement_reason TEXT COMMENT 'Why does the status need reinforcement?',
+    updated_by INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
+    FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE CASCADE,
+    FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL,
+    UNIQUE KEY unique_grade_subject_remark (student_id, subject_id, school_year)
+) ENGINE=InnoDB;
+
+-- ============================================
 -- COMPETENCY RECORDS TABLE
 -- ============================================
 CREATE TABLE IF NOT EXISTS competency_records (
@@ -116,7 +130,8 @@ CREATE TABLE IF NOT EXISTS competency_records (
     school_year VARCHAR(20) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
-    FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE CASCADE
+    FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_competency (student_id, subject_id, school_year)
 ) ENGINE=InnoDB;
 
 -- ============================================
@@ -125,13 +140,11 @@ CREATE TABLE IF NOT EXISTS competency_records (
 CREATE TABLE IF NOT EXISTS non_academic_indicators (
     id INT AUTO_INCREMENT PRIMARY KEY,
     student_id INT NOT NULL UNIQUE,
-    skills TEXT,
-    hobbies TEXT,
-    father_fullname VARCHAR(100),
-    father_occupation VARCHAR(100),
-    mother_fullname VARCHAR(100),
-    mother_occupation VARCHAR(100),
-    annual_income ENUM('below_100k', '100k_300k', '300k_500k', '500k_above') DEFAULT 'below_100k',
+    skills TEXT COMMENT 'Skills assessment (free text)',
+    hobbies TEXT COMMENT 'Student interests / hobbies',
+    career_preference VARCHAR(255) COMMENT 'Stated career or college preference',
+    first_choice_strand_course VARCHAR(255) NULL COMMENT 'Student 1st choice strand or course (guidance: mismatch vs Top 3)',
+    technical_skill_level ENUM('beginner', 'developing', 'proficient', 'advanced') NOT NULL DEFAULT 'developing',
     entrance_exam_score DECIMAL(5,2),
     entrance_exam_date DATE,
     updated_by INT,
@@ -139,6 +152,25 @@ CREATE TABLE IF NOT EXISTS non_academic_indicators (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
     FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+-- Existing database: ALTER TABLE non_academic_indicators ADD COLUMN first_choice_strand_course VARCHAR(255) NULL COMMENT 'Student 1st choice strand or course (guidance: mismatch vs Top 3)' AFTER career_preference;
+
+-- ============================================
+-- WORK IMMERSION (SHS — one row per student per school year)
+-- ============================================
+CREATE TABLE IF NOT EXISTS work_immersion (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id INT NOT NULL,
+    company_name VARCHAR(150),
+    rating DECIMAL(5,2) NOT NULL,
+    hours_completed INT NOT NULL DEFAULT 0,
+    performance_remarks TEXT,
+    school_year VARCHAR(20) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_work_immersion_student_year (student_id, school_year)
 ) ENGINE=InnoDB;
 
 -- ============================================
@@ -167,7 +199,8 @@ CREATE TABLE IF NOT EXISTS career_recommendations (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
-    FOREIGN KEY (generated_by) REFERENCES users(id) ON DELETE SET NULL
+    FOREIGN KEY (generated_by) REFERENCES users(id) ON DELETE SET NULL,
+    UNIQUE KEY unique_career_rec (student_id, recommendation_type, school_year)
 ) ENGINE=InnoDB;
 
 -- ============================================
@@ -210,7 +243,85 @@ CREATE TABLE IF NOT EXISTS activity_logs (
     description TEXT,
     ip_address VARCHAR(45),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
+    INDEX idx_activity_created (created_at),
+    INDEX idx_activity_action (action)
+) ENGINE=InnoDB;
+
+-- ============================================
+-- SYSTEM SETTINGS (school year, thresholds, framework notes)
+-- ============================================
+CREATE TABLE IF NOT EXISTS system_settings (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    setting_key VARCHAR(100) NOT NULL UNIQUE,
+    setting_value TEXT,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+-- ============================================
+-- SUPPORT TICKETS (helpdesk)
+-- ============================================
+CREATE TABLE IF NOT EXISTS support_tickets (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    subject VARCHAR(200) NOT NULL,
+    message TEXT NOT NULL,
+    status ENUM('open', 'in_progress', 'resolved') NOT NULL DEFAULT 'open',
+    admin_reply TEXT,
+    replied_by INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (replied_by) REFERENCES users(id) ON DELETE SET NULL,
+    INDEX idx_support_status (status)
+) ENGINE=InnoDB;
+
+-- ============================================
+-- NOTIFICATIONS (in-app notifications for users)
+-- ============================================
+CREATE TABLE IF NOT EXISTS notifications (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    title VARCHAR(200) NOT NULL,
+    message TEXT NOT NULL,
+    type VARCHAR(50) DEFAULT 'info',
+    is_read TINYINT(1) DEFAULT 0,
+    related_id INT,
+    related_type VARCHAR(50),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_notifications_user (user_id, is_read),
+    INDEX idx_notifications_created (created_at)
+) ENGINE=InnoDB;
+
+-- ============================================
+-- TEACHER SECTION ASSIGNMENTS
+-- ============================================
+CREATE TABLE IF NOT EXISTS teacher_sections (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    teacher_id INT NOT NULL,
+    section_id INT NOT NULL,
+    school_year VARCHAR(20) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (teacher_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (section_id) REFERENCES sections(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_teacher_section (teacher_id, section_id, school_year),
+    INDEX idx_teacher_sections (teacher_id, school_year)
+) ENGINE=InnoDB;
+
+-- ============================================
+-- TEACHER SUBJECT ASSIGNMENTS
+-- ============================================
+CREATE TABLE IF NOT EXISTS teacher_subjects (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    teacher_id INT NOT NULL,
+    subject_id INT NOT NULL,
+    school_year VARCHAR(20) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (teacher_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_teacher_subject (teacher_id, subject_id, school_year),
+    INDEX idx_teacher_subjects (teacher_id, school_year)
 ) ENGINE=InnoDB;
 
 -- ============================================
@@ -237,7 +348,8 @@ CREATE TABLE IF NOT EXISTS strand_course_mapping (
     course_name VARCHAR(150) NOT NULL,
     career_pathway VARCHAR(200),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (strand_id) REFERENCES strands(id) ON DELETE CASCADE
+    FOREIGN KEY (strand_id) REFERENCES strands(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_strand_course (strand_id, course_name)
 ) ENGINE=InnoDB;
 
 -- ============================================
@@ -253,6 +365,17 @@ INSERT INTO users (username, password, full_name, email, role) VALUES
 ('teacher_cruz', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Ana Cruz', 'ana@steps.edu', 'teacher'),
 ('guidance_reyes', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Jose Reyes', 'jose@steps.edu', 'guidance'),
 ('guidance_mendoza', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Sofia Mendoza', 'sofia@steps.edu', 'guidance');
+
+INSERT INTO system_settings (setting_key, setting_value) VALUES
+('school_year', '2025-2026'),
+('comp_weak_threshold', '75'),
+('comp_at_risk_min', '75'),
+('comp_at_risk_max', '79'),
+('comp_proficient_min', '80'),
+('emp_moderate_min', '75'),
+('emp_high_min', '80'),
+('emp_very_high_min', '90'),
+('framework_notes', 'Maintain DepEd K to 12 alignment. Update strand descriptions when curriculum changes. Teachers encode grades; administrators do not access student academic records.');
 
 INSERT INTO strands (strand_code, strand_name, description) VALUES
 ('STEM', 'Science, Technology, Engineering and Mathematics', 'Focus on advanced math, science, and technology subjects'),
@@ -589,10 +712,10 @@ INSERT INTO grades (student_id, subject_id, quarter, grade, school_year, encoded
 (13, 31, 'Q1', 82, '2025-2026', 2), (13, 31, 'Q2', 83, '2025-2026', 2), (13, 31, 'Q3', 84, '2025-2026', 2), (13, 31, 'Q4', 85, '2025-2026', 2),  -- MAPEH 10
 (13, 32, 'Q1', 92, '2025-2026', 2), (13, 32, 'Q2', 93, '2025-2026', 2), (13, 32, 'Q3', 94, '2025-2026', 2), (13, 32, 'Q4', 95, '2025-2026', 2);  -- TLE 10 ★
 
--- Non-academic indicators for JHS test students
-INSERT INTO non_academic_indicators (student_id, skills, hobbies, father_fullname, father_occupation, mother_fullname, mother_occupation, annual_income, entrance_exam_score) VALUES
-(9,  'coding, robotics, math problem solving',         'science fair, programming, gadgets',            'Roberto Reyes',    'Engineer',  'Maria Reyes',    'Nurse',               '300k_500k',  88.50),
-(10, 'cooking, sewing, handicrafts',                   'baking, crafts, cooking experiments, gardening', 'Pedro Santos',     'Eatery Owner', 'Rosa Santos',  'Dressmaker',     '100k_300k',  76.00),
-(11, 'creative writing, public speaking, debating',    'reading, journalism, theater, social media',     'Antonio Villanueva', 'Teacher', 'Carmen Villanueva', 'Teacher',   '300k_500k',  85.00),
-(12, 'drawing, music, research, organizing',           'painting, playing guitar, reading, volunteering','Jose Dela Torre', 'Accountant', 'Teresa Dela Torre', 'Nurse', '100k_300k',  80.00),
-(13, 'selling, negotiating, organizing events',        'business, trading, basketball, cooking',         'Ramon Buenaventura', 'OFW', 'Luz Buenaventura', 'Small Business Owner',          '100k_300k',  79.50);
+-- Non-academic indicators for JHS test students (inputs for Random Forest recommender)
+INSERT INTO non_academic_indicators (student_id, skills, hobbies, career_preference, first_choice_strand_course, technical_skill_level, entrance_exam_score) VALUES
+(9,  'coding, robotics, math problem solving',         'science fair, programming, gadgets',            'Engineering or IT in college', 'STEM', 'proficient', 88.50),
+(10, 'cooking, sewing, handicrafts',                   'baking, crafts, cooking experiments, gardening', 'Hospitality or culinary arts', 'TVL - Cookery', 'developing', 76.00),
+(11, 'creative writing, public speaking, debating',    'reading, journalism, theater, social media',     'Law, communication, or education', 'HUMSS', 'proficient', 85.00),
+(12, 'drawing, music, research, organizing',           'painting, playing guitar, reading, volunteering','Flexible / undecided college program', NULL, 'developing', 80.00),
+(13, 'selling, negotiating, organizing events',        'business, trading, basketball, cooking',         'Business or entrepreneurship', 'ABM', 'proficient', 79.50);

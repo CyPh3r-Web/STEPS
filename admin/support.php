@@ -1,0 +1,103 @@
+<?php
+$pageTitle = 'Support Tickets';
+require_once __DIR__ . '/../includes/header.php';
+requireAdmin();
+
+$success = '';
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'reply') {
+    $id = (int)($_POST['ticket_id'] ?? 0);
+    $status = sanitize($_POST['status'] ?? 'open');
+    $reply = trim($_POST['admin_reply'] ?? '');
+    if (!in_array($status, ['open', 'in_progress', 'resolved'], true)) {
+        $status = 'open';
+    }
+    if ($id > 0) {
+        // Get previous status to check if transitioning to resolved
+        $prevStmt = $pdo->prepare('SELECT status, user_id FROM support_tickets WHERE id = ?');
+        $prevStmt->execute([$id]);
+        $prevData = $prevStmt->fetch();
+        
+        $u = $pdo->prepare('UPDATE support_tickets SET status = ?, admin_reply = ?, replied_by = ?, updated_at = NOW() WHERE id = ?');
+        $u->execute([$status, $reply !== '' ? $reply : null, $_SESSION['user_id'], $id]);
+        
+        // Create notification if ticket is now resolved
+        if ($prevData && $prevData['status'] !== 'resolved' && $status === 'resolved') {
+            $notifyStmt = $pdo->prepare("INSERT INTO notifications (user_id, title, message, type, related_id, related_type) VALUES (?, ?, ?, 'success', ?, 'support_ticket')");
+            $notifyStmt->execute([
+                $prevData['user_id'],
+                'Support Ticket Resolved',
+                'Your support ticket #' . $id . ' has been marked as resolved. Admin reply: ' . ($reply ?: 'No additional comments.'),
+                $id
+            ]);
+        }
+        
+        $logStmt = $pdo->prepare('INSERT INTO activity_logs (user_id, action, description, ip_address) VALUES (?, ?, ?, ?)');
+        $logStmt->execute([$_SESSION['user_id'], 'support_ticket_update', "Ticket #$id updated", $_SERVER['REMOTE_ADDR'] ?? '']);
+        $success = 'Ticket updated.';
+    }
+}
+
+$tickets = [];
+try {
+    $tickets = $pdo->query("SELECT t.*, u.full_name, u.username FROM support_tickets t JOIN users u ON t.user_id = u.id ORDER BY t.updated_at DESC")->fetchAll();
+} catch (PDOException $e) {
+    $tickets = [];
+}
+
+require_once __DIR__ . '/../includes/sidebar.php';
+?>
+
+<?php if ($success): ?>
+<script>document.addEventListener('DOMContentLoaded', function() { Toast.fire({ icon: 'success', title: <?= json_encode($success) ?> }); });</script>
+<?php endif; ?>
+
+<div class="space-y-6">
+    <?php foreach ($tickets as $t): ?>
+        <div class="bg-white border border-gray-200 rounded-xl p-6">
+            <div class="flex flex-wrap justify-between gap-2 mb-3">
+                <div>
+                    <span class="badge <?= $t['status'] === 'resolved' ? 'badge-green' : ($t['status'] === 'in_progress' ? 'badge-amber' : 'badge-blue') ?>"><?= sanitize($t['status']) ?></span>
+                    <span class="text-sm text-gray-500 ml-2"><?= date('M d, Y H:i', strtotime($t['created_at'])) ?></span>
+                </div>
+                <span class="text-sm text-gray-600"><?= sanitize($t['full_name']) ?> (<?= sanitize($t['username']) ?>)</span>
+            </div>
+            <h3 class="font-semibold text-gray-900 mb-2"><?= sanitize($t['subject']) ?></h3>
+            <p class="text-sm text-gray-700 whitespace-pre-wrap mb-4"><?= sanitize($t['message']) ?></p>
+            <?php if (!empty($t['admin_reply'])): ?>
+                <div class="bg-gray-50 rounded-lg p-4 mb-4 text-sm border border-gray-100">
+                    <p class="text-xs font-semibold text-gray-500 mb-1">Previous reply</p>
+                    <?= nl2br(sanitize($t['admin_reply'])) ?>
+                </div>
+            <?php endif; ?>
+            <form method="post" class="space-y-3" <?= $t['status'] === 'resolved' ? 'onsubmit="return false;"' : '' ?>>
+                <input type="hidden" name="action" value="reply">
+                <input type="hidden" name="ticket_id" value="<?= (int)$t['id'] ?>">
+                <div>
+                    <label class="form-label">Status</label>
+                    <select name="status" class="form-select max-w-xs" <?= $t['status'] === 'resolved' ? 'disabled' : '' ?>>
+                        <option value="open" <?= $t['status'] === 'open' ? 'selected' : '' ?>>Open</option>
+                        <option value="in_progress" <?= $t['status'] === 'in_progress' ? 'selected' : '' ?>>In progress</option>
+                        <option value="resolved" <?= $t['status'] === 'resolved' ? 'selected' : '' ?>>Resolved</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">Reply / notes</label>
+                    <textarea name="admin_reply" class="form-input" rows="3" placeholder="Optional message for your records" <?= $t['status'] === 'resolved' ? 'disabled' : '' ?>><?= sanitize($t['admin_reply'] ?? '') ?></textarea>
+                </div>
+                <?php if ($t['status'] === 'resolved'): ?>
+                    <div class="flex items-center gap-2 text-sm text-gray-500 py-2">
+                        <i class="fas fa-check-circle text-green-500"></i>
+                        <span>This ticket is resolved and locked.</span>
+                    </div>
+                <?php else: ?>
+                    <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-save"></i> Update ticket</button>
+                <?php endif; ?>
+            </form>
+        </div>
+    <?php endforeach; ?>
+    <?php if (empty($tickets)): ?>
+        <p class="text-gray-500 text-sm">No support tickets yet. Users can submit requests from <strong>Help &amp; Support</strong> in the menu.</p>
+    <?php endif; ?>
+</div>
+
+<?php require_once __DIR__ . '/../includes/footer.php'; ?>

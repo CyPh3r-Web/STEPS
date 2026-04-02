@@ -1,7 +1,7 @@
 <?php
 $pageTitle = 'Diagnostic Reports';
 require_once __DIR__ . '/../includes/header.php';
-requireLogin();
+requireRole(['teacher', 'guidance']);
 
 $sections = $pdo->query("SELECT * FROM sections ORDER BY grade_level, section_name")->fetchAll();
 

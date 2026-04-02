@@ -22,7 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     } elseif ($newPassword !== $confirmPassword) {
         $pwdError = 'New password and confirmation do not match.';
     } else {
-        $stmt = $pdo->prepare("SELECT password FROM users WHERE id = ?");
+        $stmt = $pdo->prepare('SELECT password FROM users WHERE id = ?');
         $stmt->execute([$_SESSION['user_id']]);
         $pwUser = $stmt->fetch();
 
@@ -30,7 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             $pwdError = 'Current password is incorrect.';
         } else {
             $hashedPassword = password_hash($newPassword, PASSWORD_DEFAULT);
-            $updateStmt = $pdo->prepare("UPDATE users SET password = ? WHERE id = ?");
+            $updateStmt = $pdo->prepare('UPDATE users SET password = ? WHERE id = ?');
             $updateStmt->execute([$hashedPassword, $_SESSION['user_id']]);
 
             $logStmt = $pdo->prepare("INSERT INTO activity_logs (user_id, action, description, ip_address) VALUES (?, 'password_change', 'User changed password', ?)");
@@ -67,11 +67,54 @@ function sidebarLinkClass($active) {
            class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors <?= sidebarLinkClass($currentDir === 'dashboard') ?>" title="Dashboard">
             <i class="fas fa-th-large w-5 flex-shrink-0 text-center"></i><span class="sidebar-link-text">Dashboard</span>
         </a>
+
+        <?php if ($role === 'admin'): ?>
+        <p class="sidebar-label text-xs font-semibold text-gray-400 uppercase tracking-wider mt-6 mb-3 px-3">System</p>
+        <a href="<?= BASE_URL ?>users/index.php"
+           class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors <?= sidebarLinkClass($currentDir === 'users') ?>" title="User Management">
+            <i class="fas fa-users-cog w-5 flex-shrink-0 text-center"></i><span class="sidebar-link-text">User Management</span>
+        </a>
+        <a href="<?= BASE_URL ?>admin/activity_logs.php"
+           class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors <?= sidebarLinkClass($currentDir === 'admin' && in_array($currentPage ?? '', ['activity_logs', 'system_reports'])) ?>" title="Activity Logs & Reports">
+            <i class="fas fa-list w-5 flex-shrink-0 text-center"></i><span class="sidebar-link-text">Activity Logs &amp; Reports</span>
+        </a>
+        <a href="<?= BASE_URL ?>backup/index.php"
+           class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors <?= sidebarLinkClass($currentDir === 'backup' || ($currentDir === 'admin' && ($currentPage ?? '') === 'settings')) ?>" title="Backup & Recovery / Settings">
+            <i class="fas fa-database w-5 flex-shrink-0 text-center"></i><span class="sidebar-link-text">Backup &amp; Settings</span>
+        </a>
+        <a href="<?= BASE_URL ?>admin/framework.php"
+           class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors <?= sidebarLinkClass($currentDir === 'admin' && ($currentPage ?? '') === 'framework') ?>" title="Competency Framework">
+            <i class="fas fa-sitemap w-5 flex-shrink-0 text-center"></i><span class="sidebar-link-text">Competency Framework</span>
+        </a>
+        <a href="<?= BASE_URL ?>admin/performance.php"
+           class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors <?= sidebarLinkClass($currentDir === 'admin' && ($currentPage ?? '') === 'performance') ?>" title="Performance">
+            <i class="fas fa-tachometer-alt w-5 flex-shrink-0 text-center"></i><span class="sidebar-link-text">Performance</span>
+        </a>
+        <a href="<?= BASE_URL ?>admin/support.php"
+           class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors <?= sidebarLinkClass($currentDir === 'admin' && ($currentPage ?? '') === 'support') ?>" title="Support Tickets">
+            <i class="fas fa-headset w-5 flex-shrink-0 text-center"></i>
+            <span class="sidebar-link-text flex items-center gap-2">
+                Support Tickets
+                <?php
+                try {
+                    $openTickets = $pdo->query("SELECT COUNT(*) FROM support_tickets WHERE status IN ('open','in_progress')")->fetchColumn();
+                    if ($openTickets > 0): ?>
+                    <span class="inline-flex items-center justify-center px-2 py-0.5 text-xs font-bold text-white bg-red-500 rounded-full"><?= $openTickets ?></span>
+                    <?php endif;
+                } catch (PDOException $e) {}
+                ?>
+            </span>
+        </a>
+        <?php endif; ?>
+
+        <?php if ($role === 'teacher' || $role === 'guidance'): ?>
         <a href="<?= BASE_URL ?>students/index.php"
-           class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors <?= sidebarLinkClass($currentDir === 'students' && $currentPage !== 'grades') ?>" title="Students">
+           class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors <?= sidebarLinkClass($currentDir === 'students' && ($currentPage ?? '') !== 'grades') ?>" title="Students">
             <i class="fas fa-user-graduate w-5 flex-shrink-0 text-center"></i><span class="sidebar-link-text">Students</span>
         </a>
-        <?php if ($role === 'admin' || $role === 'teacher'): ?>
+        <?php endif; ?>
+
+        <?php if ($role === 'teacher'): ?>
         <a href="<?= BASE_URL ?>sections/index.php"
            class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors <?= sidebarLinkClass($currentDir === 'sections') ?>" title="Sections">
             <i class="fas fa-layer-group w-5 flex-shrink-0 text-center"></i><span class="sidebar-link-text">Sections</span>
@@ -81,24 +124,21 @@ function sidebarLinkClass($active) {
             <i class="fas fa-book w-5 flex-shrink-0 text-center"></i><span class="sidebar-link-text">Subjects</span>
         </a>
         <a href="<?= BASE_URL ?>students/grades.php"
-           class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors <?= sidebarLinkClass($currentPage === 'grades') ?>" title="Grades">
+           class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors <?= sidebarLinkClass(($currentPage ?? '') === 'grades') ?>" title="Grades">
             <i class="fas fa-clipboard-list w-5 flex-shrink-0 text-center"></i><span class="sidebar-link-text">Grades</span>
         </a>
-        <!-- Work Immersion module removed -->
-        <?php endif; ?>
-        <?php if ($role === 'guidance'): ?>
-        <!-- Work Immersion module removed -->
         <?php endif; ?>
 
+        <?php if ($role === 'teacher'): ?>
         <p class="sidebar-label text-xs font-semibold text-gray-400 uppercase tracking-wider mt-6 mb-3 px-3">Analysis</p>
-
-        <?php if ($role === 'admin' || $role === 'teacher'): ?>
         <a href="<?= BASE_URL ?>competency/index.php"
            class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors <?= sidebarLinkClass($currentDir === 'competency') ?>" title="Competency">
             <i class="fas fa-chart-bar w-5 flex-shrink-0 text-center"></i><span class="sidebar-link-text">Competency</span>
         </a>
         <?php endif; ?>
-        <?php if ($role === 'admin' || $role === 'guidance'): ?>
+
+        <?php if ($role === 'guidance'): ?>
+        <p class="sidebar-label text-xs font-semibold text-gray-400 uppercase tracking-wider mt-6 mb-3 px-3">Career</p>
         <div class="sidebar-group">
             <button type="button" onclick="toggleSidebarGroup('careerGroup')"
                 class="sidebar-link w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors <?= sidebarLinkClass($currentDir === 'career') ?>"
@@ -109,12 +149,12 @@ function sidebarLinkClass($active) {
             </button>
             <div id="careerGroup" class="pl-8 mt-1 space-y-0.5 <?= $currentDir === 'career' ? '' : 'hidden' ?>">
                 <a href="<?= BASE_URL ?>career/strand.php"
-                   class="sidebar-link flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors <?= sidebarLinkClass($currentPage === 'strand') ?>" title="Strand Recommendation">
+                   class="sidebar-link flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors <?= sidebarLinkClass(($currentPage ?? '') === 'strand') ?>" title="Strand Recommendation">
                     <i class="fas fa-graduation-cap w-4 flex-shrink-0 text-center text-xs"></i>
                     <span class="sidebar-link-text">Strand Recommendation</span>
                 </a>
                 <a href="<?= BASE_URL ?>career/course.php"
-                   class="sidebar-link flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors <?= sidebarLinkClass($currentPage === 'course') ?>" title="Course Recommendation">
+                   class="sidebar-link flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors <?= sidebarLinkClass(($currentPage ?? '') === 'course') ?>" title="Course Recommendation">
                     <i class="fas fa-university w-4 flex-shrink-0 text-center text-xs"></i>
                     <span class="sidebar-link-text">Course Recommendation</span>
                 </a>
@@ -122,29 +162,25 @@ function sidebarLinkClass($active) {
         </div>
         <?php endif; ?>
 
+        <?php if ($role === 'teacher' || $role === 'guidance'): ?>
         <p class="sidebar-label text-xs font-semibold text-gray-400 uppercase tracking-wider mt-6 mb-3 px-3">Reports</p>
-
         <a href="<?= BASE_URL ?>reports/index.php"
-           class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors <?= sidebarLinkClass($currentDir === 'reports' && $currentPage === 'index') ?>" title="Diagnostic Reports">
+           class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors <?= sidebarLinkClass($currentDir === 'reports' && ($currentPage ?? '') === 'index') ?>" title="Diagnostic Reports">
             <i class="fas fa-file-alt w-5 flex-shrink-0 text-center"></i><span class="sidebar-link-text">Diagnostic Reports</span>
         </a>
-        <?php if ($role === 'admin' || $role === 'teacher'): ?>
+        <?php if ($role === 'teacher'): ?>
         <a href="<?= BASE_URL ?>reports/class_performance.php"
-           class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors <?= sidebarLinkClass($currentPage === 'class_performance') ?>" title="Class Performance">
+           class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors <?= sidebarLinkClass(($currentPage ?? '') === 'class_performance') ?>" title="Class Performance">
             <i class="fas fa-chart-line w-5 flex-shrink-0 text-center"></i><span class="sidebar-link-text">Class Performance</span>
         </a>
         <?php endif; ?>
+        <?php endif; ?>
 
-        <?php if ($role === 'admin'): ?>
-        <p class="sidebar-label text-xs font-semibold text-gray-400 uppercase tracking-wider mt-6 mb-3 px-3">System</p>
-
-        <a href="<?= BASE_URL ?>users/index.php"
-           class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors <?= sidebarLinkClass($currentDir === 'users') ?>" title="User Management">
-            <i class="fas fa-users-cog w-5 flex-shrink-0 text-center"></i><span class="sidebar-link-text">User Management</span>
-        </a>
-        <a href="<?= BASE_URL ?>backup/index.php"
-           class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors <?= sidebarLinkClass($currentDir === 'backup') ?>" title="Backup & Recovery">
-            <i class="fas fa-database w-5 flex-shrink-0 text-center"></i><span class="sidebar-link-text">Backup & Recovery</span>
+        <?php if ($role === 'teacher' || $role === 'guidance'): ?>
+        <p class="sidebar-label text-xs font-semibold text-gray-400 uppercase tracking-wider mt-6 mb-3 px-3">Help</p>
+        <a href="<?= BASE_URL ?>support/request.php"
+           class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors <?= sidebarLinkClass($currentDir === 'support') ?>" title="Help & Support">
+            <i class="fas fa-life-ring w-5 flex-shrink-0 text-center"></i><span class="sidebar-link-text">Help &amp; Support</span>
         </a>
         <?php endif; ?>
     </nav>
@@ -158,6 +194,14 @@ function sidebarLinkClass($active) {
                 <p class="text-sm font-medium text-gray-900 truncate"><?= sanitize($fullName) ?></p>
                 <p class="text-xs text-gray-500 capitalize"><?= $role ?></p>
             </div>
+        </div>
+        <!-- Online/Offline Indicator -->
+        <div id="online-indicator" class="flex items-center gap-2 px-3 py-2 mb-3 rounded-lg bg-gray-50 border border-gray-200">
+            <span class="status-dot w-2 h-2 rounded-full bg-emerald-500"></span>
+            <span id="online-status-text" class="text-xs text-gray-600 font-medium">Online</span>
+            <button id="sync-button" onclick="StepsOffline.syncGrades().then(r => showSyncNotification(`Synced ${r.synced} grade(s)`))" class="ml-auto text-xs text-blue-600 hover:text-blue-800 hidden" title="Sync now">
+                <i class="fas fa-sync-alt"></i>
+            </button>
         </div>
         <a href="<?= BASE_URL ?>auth/logout.php"
            class="sidebar-link flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-red-600 hover:bg-red-50 transition-colors font-medium" title="Sign Out">
@@ -180,11 +224,45 @@ function sidebarLinkClass($active) {
                 </button>
                 <div>
                     <h2 class="text-lg font-semibold text-gray-900"><?= $pageTitle ?? 'Dashboard' ?></h2>
-                    <p class="text-xs text-gray-500">S.Y. <?= SCHOOL_YEAR ?></p>
+                    <p class="text-xs text-gray-500">S.Y. <?= sanitize(effectiveSchoolYear()) ?></p>
                 </div>
             </div>
             <div class="flex items-center gap-2">
                 <span class="text-xs text-gray-400 hidden sm:inline mr-2"><?= date('F d, Y') ?></span>
+
+                <!-- Notifications Bell -->
+                <?php if (isset($_SESSION['user_id']) && in_array($_SESSION['role'] ?? '', ['teacher', 'guidance'])): 
+                    $notifCount = getUnreadNotificationCount($pdo, $_SESSION['user_id']);
+                    $notifications = getUnreadNotifications($pdo, $_SESSION['user_id']);
+                ?>
+                <div class="relative">
+                    <button type="button" onclick="toggleNotificationsDropdown()" class="w-9 h-9 rounded-lg flex items-center justify-center transition-colors relative" title="Notifications">
+                        <i class="fas fa-bell text-gray-500 hover:text-gray-700"></i>
+                        <?php if ($notifCount > 0): ?>
+                        <span class="absolute -top-1 -right-1 w-5 h-5 flex items-center justify-center text-xs font-bold text-white bg-red-500 rounded-full"><?= $notifCount ?></span>
+                        <?php endif; ?>
+                    </button>
+                    <div id="notificationsDropdown" class="hidden absolute right-0 top-full mt-2 w-80 bg-white border border-gray-200 rounded-xl shadow-lg z-50 max-h-96 overflow-y-auto">
+                        <div class="p-3 border-b border-gray-200 flex items-center justify-between">
+                            <h4 class="font-semibold text-sm">Notifications</h4>
+                            <?php if ($notifCount > 0): ?>
+                            <button onclick="markAllNotificationsRead()" class="text-xs text-blue-600 hover:text-blue-800">Mark all read</button>
+                            <?php endif; ?>
+                        </div>
+                        <?php if (empty($notifications)): ?>
+                        <p class="p-4 text-sm text-gray-500 text-center">No new notifications</p>
+                        <?php else: ?>
+                            <?php foreach ($notifications as $notif): ?>
+                            <div class="p-3 border-b border-gray-100 hover:bg-gray-50">
+                                <p class="text-sm font-medium text-gray-800"><?= sanitize($notif['title']) ?></p>
+                                <p class="text-xs text-gray-500 mt-1"><?= sanitize($notif['message']) ?></p>
+                                <p class="text-xs text-gray-400 mt-1"><?= date('M d, H:i', strtotime($notif['created_at'])) ?></p>
+                            </div>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                <?php endif; ?>
 
                 <!-- Light/Dark Mode Toggle -->
                 <button type="button" id="modeToggle" onclick="toggleMode()" class="mode-toggle-btn w-9 h-9 rounded-lg flex items-center justify-center transition-colors" title="Toggle dark mode">
@@ -329,6 +407,29 @@ function togglePwdField(inputId, iconId) {
     if (input.type === 'password') { input.type = 'text'; icon.classList.replace('fa-eye', 'fa-eye-slash'); }
     else { input.type = 'password'; icon.classList.replace('fa-eye-slash', 'fa-eye'); }
 }
+
+function toggleNotificationsDropdown() {
+    const dd = document.getElementById('notificationsDropdown');
+    if (dd) dd.classList.toggle('hidden');
+}
+
+function markAllNotificationsRead() {
+    fetch('<?= BASE_URL ?>api/mark_notifications_read.php', { method: 'POST' })
+        .then(() => {
+            const dd = document.getElementById('notificationsDropdown');
+            if (dd) dd.classList.add('hidden');
+            location.reload();
+        })
+        .catch(() => {});
+}
+
+document.addEventListener('click', function(e) {
+    const bell = e.target.closest('[onclick="toggleNotificationsDropdown()"]');
+    const dd = document.getElementById('notificationsDropdown');
+    if (!bell && dd && !dd.contains(e.target)) {
+        dd.classList.add('hidden');
+    }
+});
 
 <?php if ($pwdSuccess): ?>
 document.addEventListener('DOMContentLoaded', function() {

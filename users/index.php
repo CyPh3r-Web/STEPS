@@ -18,6 +18,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     if (empty($fullName) || empty($role)) {
         $error = 'Please fill in all required fields.';
         $openModal = 'add';
+    } elseif (!in_array($role, ['teacher', 'guidance'], true)) {
+        $error = 'You can only create Teacher or Guidance Counselor accounts.';
+        $openModal = 'add';
     } else {
         $nameParts = explode(' ', trim($fullName));
         $lastName = strtolower(preg_replace('/[^a-zA-Z]/', '', end($nameParts)));
@@ -25,7 +28,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         if (!empty($customUsername)) {
             $username = strtolower(preg_replace('/[^a-zA-Z0-9_]/', '', $customUsername));
         } else {
-            $prefix = ($role === 'guidance') ? 'guidance' : (($role === 'admin') ? 'admin' : 'teacher');
+            $prefix = ($role === 'guidance') ? 'guidance' : 'teacher';
             $username = $prefix . '_' . $lastName;
         }
 
@@ -301,7 +304,6 @@ document.addEventListener('DOMContentLoaded', function() {
                         <option value="">Select Role</option>
                         <option value="teacher">Teacher</option>
                         <option value="guidance">Guidance Counselor</option>
-                        <option value="admin">Administrator</option>
                     </select>
                 </div>
                 <div>
@@ -402,7 +404,7 @@ function updateAddPreview() {
     if (!name || !role) { addPreview.textContent = '—'; return; }
     const parts = name.split(' ').filter(p => p.length > 0);
     const lastName = parts[parts.length - 1].toLowerCase().replace(/[^a-z]/g, '');
-    const prefix = role === 'guidance' ? 'guidance' : (role === 'admin' ? 'admin' : 'teacher');
+    const prefix = role === 'guidance' ? 'guidance' : 'teacher';
     addPreview.textContent = prefix + '_' + lastName;
 }
 addFullName.addEventListener('input', updateAddPreview);

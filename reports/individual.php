@@ -1,7 +1,7 @@
 <?php
 $pageTitle = 'Individual Diagnostic Report';
 require_once __DIR__ . '/../includes/header.php';
-requireLogin();
+requireRole(['teacher', 'guidance']);
 
 $strandGradeRaw = $_GET['strand_grade'] ?? '';
 $sectionIdFilter = $_GET['section_id'] ?? '';
@@ -11,8 +11,8 @@ $studentId = $_GET['student_id'] ?? '';
 $strandGradeOptions = $pdo->query("
     SELECT DISTINCT sec.grade_level, sec.strand
     FROM sections sec
-    INNER JOIN students s ON s.section_id = sec.id AND s.status = 'active' AND s.school_year = " . $pdo->quote(SCHOOL_YEAR) . "
-    WHERE sec.school_year = " . $pdo->quote(SCHOOL_YEAR) . "
+    INNER JOIN students s ON s.section_id = sec.id AND s.status = 'active' AND s.school_year = " . $pdo->quote(effectiveSchoolYear()) . "
+    WHERE sec.school_year = " . $pdo->quote(effectiveSchoolYear()) . "
     ORDER BY sec.grade_level, COALESCE(sec.strand, '')
 ")->fetchAll();
 
@@ -27,8 +27,8 @@ if ($strandGradeRaw !== '') {
     $strandFilter = isset($parts[1]) ? $parts[1] : '';
     $secSql = "SELECT sec.id, sec.section_name, sec.grade_level, sec.strand
         FROM sections sec
-        INNER JOIN students s ON s.section_id = sec.id AND s.status = 'active' AND s.school_year = " . $pdo->quote(SCHOOL_YEAR) . "
-        WHERE sec.grade_level = ? AND sec.school_year = " . $pdo->quote(SCHOOL_YEAR);
+        INNER JOIN students s ON s.section_id = sec.id AND s.status = 'active' AND s.school_year = " . $pdo->quote(effectiveSchoolYear()) . "
+        WHERE sec.grade_level = ? AND sec.school_year = " . $pdo->quote(effectiveSchoolYear());
     $secParams = [$gradeLevel];
     if ($strandFilter === '' || $strandFilter === null) {
         $secSql .= " AND (sec.strand IS NULL OR sec.strand = '')";
@@ -63,8 +63,8 @@ if ($studentId && ($strandGradeRaw === '' || $sectionIdFilter === '')) {
             if (!$sectionsFiltered && $gradeLevel) {
                 $secSql = "SELECT sec.id, sec.section_name, sec.grade_level, sec.strand
                     FROM sections sec
-                    INNER JOIN students st ON st.section_id = sec.id AND st.status = 'active' AND st.school_year = " . $pdo->quote(SCHOOL_YEAR) . "
-                    WHERE sec.grade_level = ? AND sec.school_year = " . $pdo->quote(SCHOOL_YEAR);
+                    INNER JOIN students st ON st.section_id = sec.id AND st.status = 'active' AND st.school_year = " . $pdo->quote(effectiveSchoolYear()) . "
+                    WHERE sec.grade_level = ? AND sec.school_year = " . $pdo->quote(effectiveSchoolYear());
                 $secParams = [$gradeLevel];
                 if ($strandFilter === '' || $strandFilter === null) {
                     $secSql .= " AND (sec.strand IS NULL OR sec.strand = '')";
@@ -122,7 +122,7 @@ if ($studentId) {
         ]);
 
         $saveReport = $pdo->prepare("INSERT INTO diagnostic_reports (student_id, report_type, report_data, generated_by, school_year) VALUES (?, 'individual', ?, ?, ?)");
-        $saveReport->execute([$studentId, $reportData, $_SESSION['user_id'], SCHOOL_YEAR]);
+        $saveReport->execute([$studentId, $reportData, $_SESSION['user_id'], effectiveSchoolYear()]);
     }
 }
 
@@ -223,7 +223,7 @@ document.addEventListener('DOMContentLoaded', function() {
     <div class="bg-white border border-gray-200 rounded-xl p-8 mb-6">
         <div class="text-center mb-6 pb-6 border-b border-gray-200">
             <h2 class="text-xl font-bold text-gray-900">INDIVIDUAL DIAGNOSTIC REPORT</h2>
-            <p class="text-sm text-gray-500"><?= SITE_FULL_NAME ?> | S.Y. <?= SCHOOL_YEAR ?></p>
+            <p class="text-sm text-gray-500"><?= SITE_FULL_NAME ?> | S.Y. <?= sanitize(effectiveSchoolYear()) ?></p>
         </div>
 
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
@@ -282,19 +282,21 @@ document.addEventListener('DOMContentLoaded', function() {
             </tfoot>
         </table>
 
-        <!-- Employability & Career -->
+        <!-- Career (all roles); employability guidance-only -->
         <?php if ($careerRec): ?>
-            <?php $empLvl = getEmployabilityLevel($careerRec['employability_score']); ?>
-            <h4 class="text-sm font-semibold text-gray-900 mb-3 pb-2 border-b border-gray-100">Employability & Career Recommendation</h4>
-            <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
-                <div>
-                    <p class="text-xs text-gray-400">Employability Score</p>
+            <h4 class="text-sm font-semibold text-gray-900 mb-3 pb-2 border-b border-gray-100">Career recommendation</h4>
+            <?php if (($_SESSION['role'] ?? '') === 'guidance' && $careerRec['employability_score'] !== null && $careerRec['employability_score'] !== ''): ?>
+                <?php $empLvl = getEmployabilityLevel((float) $careerRec['employability_score']); ?>
+                <div class="mb-4 p-3 bg-green-50 border border-green-100 rounded-lg">
+                    <p class="text-xs text-gray-500">Employability readiness (SHS) — from Work Immersion grade</p>
                     <p class="text-lg font-bold"><?= formatNumber($careerRec['employability_score']) ?></p>
                     <span class="badge badge-<?= $empLvl['color'] === 'emerald' ? 'green' : $empLvl['color'] ?>"><?= $empLvl['label'] ?></span>
                 </div>
+            <?php endif; ?>
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
                 <div>
                     <p class="text-xs text-gray-400">Recommended Strand</p>
-                    <p class="text-sm font-semibold"><?= sanitize($careerRec['recommended_strand']) ?></p>
+                    <p class="text-sm font-semibold"><?= sanitize($careerRec['recommended_strand'] ?? 'N/A') ?></p>
                 </div>
                 <div>
                     <p class="text-xs text-gray-400">Strand Match</p>

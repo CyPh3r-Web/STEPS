@@ -1,10 +1,10 @@
 <?php
 $pageTitle = 'Work Immersion';
 require_once __DIR__ . '/../includes/header.php';
-requireRole(['admin', 'teacher', 'guidance']);
+requireRole(['teacher', 'guidance']);
 
 $sectionFilter = $_GET['section'] ?? '';
-$schoolYearFilter = $_GET['school_year'] ?? SCHOOL_YEAR;
+$schoolYearFilter = $_GET['school_year'] ?? effectiveSchoolYear();
 
 $where = ["s.status = 'active'", "sec.grade_level IN (11, 12)"];
 $params = [];

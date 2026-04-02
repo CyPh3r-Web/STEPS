@@ -1,7 +1,7 @@
 <?php
 $pageTitle = 'Add Work Immersion';
 require_once __DIR__ . '/../includes/header.php';
-requireRole(['admin', 'teacher', 'guidance']);
+requireRole(['teacher', 'guidance']);
 
 $studentId = $_GET['student_id'] ?? 0;
 $student = null;
@@ -29,7 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $rating = $_POST['rating'] ?? '';
     $hoursCompleted = (int)($_POST['hours_completed'] ?? 0);
     $performanceRemarks = sanitize($_POST['performance_remarks'] ?? '');
-    $schoolYear = sanitize($_POST['school_year'] ?? SCHOOL_YEAR);
+    $schoolYear = sanitize($_POST['school_year'] ?? effectiveSchoolYear());
 
     if (!$studentId) {
         $error = 'Please select a student.';
@@ -70,7 +70,7 @@ require_once __DIR__ . '/../includes/sidebar.php';
 
     <div class="bg-white border border-gray-200 rounded-xl p-6">
         <h3 class="text-base font-semibold text-gray-900 mb-2">Add Work Immersion Record</h3>
-        <p class="text-sm text-gray-500 mb-6">The rating is used in the employability score for career recommendations (40% weight).</p>
+        <p class="text-sm text-gray-500 mb-6">The Work Immersion rating (0–100) is the basis for <strong>employability readiness</strong> on the guidance side when generating SHS course recommendations—not shown to teachers on student profiles.</p>
 
         <form method="POST">
             <div class="space-y-5">
@@ -94,7 +94,7 @@ require_once __DIR__ . '/../includes/sidebar.php';
                     <label class="form-label">Rating (Employability) <span class="text-red-500">*</span></label>
                     <input type="number" name="rating" class="form-input" required min="0" max="100" step="0.01"
                            value="<?= sanitize($_POST['rating'] ?? '') ?>" placeholder="0-100">
-                    <p class="text-xs text-gray-500 mt-1">Work immersion grade from the company (0-100). Feeds into employability score.</p>
+                    <p class="text-xs text-gray-500 mt-1">Company/supervisor rating (0–100). Guidance uses this as the SHS employability readiness indicator.</p>
                 </div>
                 <div>
                     <label class="form-label">Hours Completed</label>
@@ -108,7 +108,7 @@ require_once __DIR__ . '/../includes/sidebar.php';
                 <div>
                     <label class="form-label">School Year <span class="text-red-500">*</span></label>
                     <input type="text" name="school_year" class="form-input" required
-                           value="<?= sanitize($_POST['school_year'] ?? SCHOOL_YEAR) ?>" placeholder="e.g., 2025-2026">
+                           value="<?= sanitize($_POST['school_year'] ?? effectiveSchoolYear()) ?>" placeholder="e.g., 2025-2026">
                 </div>
             </div>
 

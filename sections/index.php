@@ -1,7 +1,7 @@
 <?php
 $pageTitle = 'Sections';
 require_once __DIR__ . '/../includes/header.php';
-requireRole(['admin', 'teacher']);
+requireRole('teacher');
 
 $strands = $pdo->query("SELECT * FROM strands ORDER BY strand_name")->fetchAll();
 $teachers = $pdo->query("SELECT id, full_name FROM users WHERE role IN ('teacher','admin') AND status = 'active' ORDER BY full_name")->fetchAll();
@@ -254,7 +254,7 @@ $shsCount = count(array_filter($sections, fn($s) => $s['grade_level'] >= 11));
                 </div>
                 <div>
                     <label class="form-label">School Year <span class="text-red-500">*</span></label>
-                    <input type="text" name="school_year" class="form-input" required value="<?= SCHOOL_YEAR ?>" placeholder="e.g., 2025-2026">
+                    <input type="text" name="school_year" class="form-input" required value="<?= effectiveSchoolYear() ?>" placeholder="e.g., 2025-2026">
                 </div>
             </div>
             <div class="flex items-center justify-end gap-4 mt-6 pt-5 border-t border-gray-200">

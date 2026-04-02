@@ -1,7 +1,7 @@
 <?php
 $pageTitle = 'Competency Analysis';
 require_once __DIR__ . '/../includes/header.php';
-requireRole(['admin', 'teacher']);
+requireRole('teacher');
 
 $sectionFilter = $_GET['section'] ?? '';
 $levelFilter = $_GET['level'] ?? '';

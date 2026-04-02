@@ -14,6 +14,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (empty($fullName) || empty($role)) {
         $error = 'Please fill in all required fields.';
+    } elseif (!in_array($role, ['teacher', 'guidance'], true)) {
+        $error = 'Only Teacher or Guidance Counselor accounts can be created here.';
     } else {
         // Generate username: role_lastname (lowercase, no spaces)
         $nameParts = explode(' ', trim($fullName));
@@ -26,23 +28,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $username = $prefix . '_' . $lastName;
         }
 
-        // Check for duplicate and append number if needed
-        $baseUsername = $username;
-        $counter = 1;
-        while (true) {
-            $check = $pdo->prepare("SELECT id FROM users WHERE username = ?");
-            $check->execute([$username]);
-            if (!$check->fetch()) break;
-            $username = $baseUsername . $counter;
-            $counter++;
+        // Check for exact duplicate username - prevent creation if exists
+        $check = $pdo->prepare("SELECT id FROM users WHERE username = ?");
+        $check->execute([$username]);
+        if ($check->fetch()) {
+            $error = 'A user with this username already exists. Please use a different name or custom username.';
+        } else {
+            // Check for duplicate with auto-increment
+            $baseUsername = $username;
+            $counter = 1;
+            while (true) {
+                $check = $pdo->prepare("SELECT id FROM users WHERE username = ?");
+                $check->execute([$username]);
+                if (!$check->fetch()) break;
+                $username = $baseUsername . $counter;
+                $counter++;
+            }
+
+            $defaultPassword = password_hash('password', PASSWORD_DEFAULT);
+
+            $stmt = $pdo->prepare("INSERT INTO users (username, password, full_name, email, role) VALUES (?, ?, ?, ?, ?)");
+            $stmt->execute([$username, $defaultPassword, $fullName, $email ?: null, $role]);
+
+            $generatedUsername = $username;
         }
-
-        $defaultPassword = password_hash('password', PASSWORD_DEFAULT);
-
-        $stmt = $pdo->prepare("INSERT INTO users (username, password, full_name, email, role) VALUES (?, ?, ?, ?, ?)");
-        $stmt->execute([$username, $defaultPassword, $fullName, $email ?: null, $role]);
-
-        $generatedUsername = $username;
     }
 }
 
@@ -129,7 +138,6 @@ document.addEventListener('DOMContentLoaded', function() {
                         <option value="">Select Role</option>
                         <option value="teacher" <?= ($role ?? '') === 'teacher' ? 'selected' : '' ?>>Teacher</option>
                         <option value="guidance" <?= ($role ?? '') === 'guidance' ? 'selected' : '' ?>>Guidance Counselor</option>
-                        <option value="admin" <?= ($role ?? '') === 'admin' ? 'selected' : '' ?>>Administrator</option>
                     </select>
                 </div>
                 <div>
@@ -175,7 +183,7 @@ function updatePreview() {
 
     const parts = name.split(' ').filter(p => p.length > 0);
     const lastName = parts[parts.length - 1].toLowerCase().replace(/[^a-z]/g, '');
-    const prefix = role === 'guidance' ? 'guidance' : (role === 'admin' ? 'admin' : 'teacher');
+    const prefix = role === 'guidance' ? 'guidance' : 'teacher';
     preview.textContent = prefix + '_' + lastName;
 }
 

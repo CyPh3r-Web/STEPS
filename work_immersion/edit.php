@@ -1,7 +1,7 @@
 <?php
 $pageTitle = 'Edit Work Immersion';
 require_once __DIR__ . '/../includes/header.php';
-requireRole(['admin', 'teacher', 'guidance']);
+requireRole(['teacher', 'guidance']);
 
 $id = $_GET['id'] ?? 0;
 $stmt = $pdo->prepare("SELECT wi.*, s.first_name, s.last_name, s.lrn, sec.section_name, sec.grade_level
@@ -24,17 +24,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $rating = $_POST['rating'] ?? '';
     $hoursCompleted = (int)($_POST['hours_completed'] ?? 0);
     $performanceRemarks = sanitize($_POST['performance_remarks'] ?? '');
-    $schoolYear = sanitize($_POST['school_year'] ?? SCHOOL_YEAR);
+    $schoolYear = sanitize($_POST['school_year'] ?? effectiveSchoolYear());
 
     if ($rating === '' || !is_numeric($rating)) {
         $error = 'Please enter a valid rating (0-100).';
     } elseif ((float)$rating < 0 || (float)$rating > 100) {
         $error = 'Rating must be between 0 and 100.';
     } else {
-        $upd = $pdo->prepare("UPDATE work_immersion SET company_name=?, rating=?, hours_completed=?, performance_remarks=?, school_year=? WHERE id=?");
-        $upd->execute([$companyName ?: null, $rating, $hoursCompleted ?: 0, $performanceRemarks ?: null, $schoolYear, $id]);
-        header('Location: ' . BASE_URL . 'work_immersion/index.php?msg=updated');
-        exit;
+        $dup = $pdo->prepare("SELECT id FROM work_immersion WHERE student_id = ? AND school_year = ? AND id != ?");
+        $dup->execute([$record['student_id'], $schoolYear, $id]);
+        if ($dup->fetch()) {
+            $error = 'Another work immersion record already exists for this student in ' . $schoolYear . '.';
+        } else {
+            $upd = $pdo->prepare("UPDATE work_immersion SET company_name=?, rating=?, hours_completed=?, performance_remarks=?, school_year=? WHERE id=?");
+            $upd->execute([$companyName ?: null, $rating, $hoursCompleted ?: 0, $performanceRemarks ?: null, $schoolYear, $id]);
+            header('Location: ' . BASE_URL . 'work_immersion/index.php?msg=updated');
+            exit;
+        }
     }
 }
 
@@ -60,6 +66,7 @@ require_once __DIR__ . '/../includes/sidebar.php';
             Student: <strong><?= sanitize($record['last_name'] . ', ' . $record['first_name']) ?></strong>
             (<?= sanitize($record['section_name'] ?? '') ?> G<?= $record['grade_level'] ?? '' ?>)
         </p>
+        <p class="text-sm text-gray-500 mb-6">This rating drives <strong>employability readiness</strong> for guidance (SHS course pathway); it is not shown as a composite score to teachers on the student profile.</p>
 
         <form method="POST">
             <div class="space-y-5">
@@ -85,7 +92,7 @@ require_once __DIR__ . '/../includes/sidebar.php';
                 <div>
                     <label class="form-label">School Year <span class="text-red-500">*</span></label>
                     <input type="text" name="school_year" class="form-input" required
-                           value="<?= sanitize($_POST['school_year'] ?? $record['school_year'] ?? SCHOOL_YEAR) ?>">
+                           value="<?= sanitize($_POST['school_year'] ?? $record['school_year'] ?? effectiveSchoolYear()) ?>">
                 </div>
             </div>
 

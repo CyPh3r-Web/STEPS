@@ -681,9 +681,70 @@ body {
 
 /* Print */
 @media print {
-    aside, header, footer, .no-print { display: none !important; }
-    main { margin: 0 !important; padding: 20px !important; }
-    .stat-card { break-inside: avoid; }
+    aside, header, footer, .no-print, .sidebar-aside, #sidebar-overlay,
+    .modal-overlay, .btn, button, .theme-picker, .mode-toggle-btn,
+    #expand-sidebar-btn, [onclick*="openModal"], [onclick*="toggle"],
+    .flex.gap-2, .flex.items-center.gap-2, .stat-card:has(.fa-exclamation),
+    .stat-card:has(.fa-check-circle), form[onsubmit*="confirmDelete"] {
+        display: none !important;
+    }
+    body, #main-wrapper, main { 
+        margin: 0 !important; 
+        padding: 0 !important; 
+        background: white !important;
+    }
+    .stat-card { 
+        break-inside: avoid; 
+        page-break-inside: avoid;
+        border: 1px solid #e2e8f0 !important;
+        box-shadow: none !important;
+    }
+    .steps-table { 
+        font-size: 12px !important; 
+        border: 1px solid #e2e8f0 !important;
+    }
+    .steps-table th, .steps-table td {
+        padding: 8px !important;
+        border: 1px solid #e2e8f0 !important;
+    }
+    h2, h3 { 
+        font-size: 16px !important; 
+        color: #000 !important;
+    }
+    .badge { 
+        border: 1px solid currentColor !important;
+        background: transparent !important;
+    }
+    a { text-decoration: none !important; color: inherit !important; }
+}
+
+/* Online/Offline Indicator */
+#online-indicator {
+    transition: all 0.3s ease;
+}
+#online-indicator.online {
+    background-color: #f0fdf4;
+    border-color: #dcfce7;
+}
+#online-indicator.offline {
+    background-color: #fef2f2;
+    border-color: #fee2e2;
+}
+#online-indicator.online .status-dot {
+    background-color: #22c55e;
+    box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.3);
+}
+#online-indicator.offline .status-dot {
+    background-color: #ef4444;
+    box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.3);
+    animation: pulse-red 2s infinite;
+}
+@keyframes pulse-red {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+#online-indicator.offline #online-status-text {
+    color: #dc2626;
 }
 
 /* Login page */

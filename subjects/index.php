@@ -1,7 +1,7 @@
 <?php
 $pageTitle = 'Subjects';
 require_once __DIR__ . '/../includes/header.php';
-requireRole(['admin', 'teacher']);
+requireAdmin();
 
 $strands = $pdo->query("SELECT * FROM strands ORDER BY strand_name")->fetchAll();
 

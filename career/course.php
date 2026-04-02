@@ -1,7 +1,8 @@
 <?php
 $pageTitle = 'Course Recommendation';
 require_once __DIR__ . '/../includes/header.php';
-requireRole(['admin', 'guidance']);
+require_once __DIR__ . '/../includes/RandomForestRecommender.php';
+requireRole('guidance');
 
 $sectionFilter = $_GET['section'] ?? '';
 $searchQuery   = $_GET['search'] ?? '';
@@ -104,7 +105,7 @@ require_once __DIR__ . '/../includes/sidebar.php';
     </div>
     <div class="stat-card" style="background:#fefce8;">
         <div class="flex items-center justify-between mb-2">
-            <span class="text-sm font-medium text-gray-600">Avg. Employability</span>
+            <span class="text-sm font-medium text-gray-600">Avg. readiness (WI)</span>
             <div class="w-10 h-10 rounded-lg flex items-center justify-center" style="background:#fef08a;">
                 <i class="fas fa-briefcase" style="color:#854d0e;"></i>
             </div>
@@ -121,7 +122,7 @@ require_once __DIR__ . '/../includes/sidebar.php';
     <i class="fas fa-route text-green-500 mt-0.5 text-lg flex-shrink-0"></i>
     <div class="text-sm text-green-800">
         <p class="font-semibold mb-1">Course Recommendation Module — Grade 11 &amp; Grade 12</p>
-        <p class="text-xs text-green-700">Recommends the best college course for each SHS student based on their <strong>4th quarter SHS grades</strong>, <strong>Work Immersion grade (Employability Score)</strong>, <strong>entrance examination score</strong>, and <strong>non-academic indicators</strong>. Output: <strong>Top 3 Recommended Courses</strong> per student.</p>
+        <p class="text-xs text-green-700"><strong>Random Forest</strong> ranks <strong>Top 3 courses</strong> using SHS Q4, work immersion (in the model), skills, interests, technical level, entrance exam, and career preference. <strong>Employability readiness</strong> in this table equals the <strong>Work Immersion subject grade</strong> (0–100) for counseling—not a blended formula.</p>
     </div>
 </div>
 
@@ -157,7 +158,7 @@ require_once __DIR__ . '/../includes/sidebar.php';
                     <th>Student</th>
                     <th>Section</th>
                     <th>Current Strand</th>
-                    <th>Employability</th>
+                    <th>Readiness (WI)</th>
                     <th>Top 3 Recommended Courses</th>
                     <th>Strand Match</th>
                     <th>Status</th>
