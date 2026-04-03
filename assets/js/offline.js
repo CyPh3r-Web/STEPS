@@ -74,9 +74,18 @@ async function getUnsyncedGrades() {
         const transaction = db.transaction([STORES.grades], 'readonly');
         const store = transaction.objectStore(STORES.grades);
         const index = store.index('synced');
-        const request = index.getAll(false);
+        const request = index.openCursor(false);
+        const results = [];
         
-        request.onsuccess = () => resolve(request.result);
+        request.onsuccess = () => {
+            const cursor = request.result;
+            if (cursor) {
+                results.push(cursor.value);
+                cursor.continue();
+            } else {
+                resolve(results);
+            }
+        };
         request.onerror = () => reject(request.error);
     });
 }

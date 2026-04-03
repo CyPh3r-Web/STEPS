@@ -1,5 +1,5 @@
 <?php
-define('BASE_URL', '/STEPS/');
+define('BASE_URL', '/');
 define('SITE_NAME', 'STEPS');
 define('SITE_FULL_NAME', 'System for Tracking Educational Progress of Students with Career Evaluation');
 define('SCHOOL_YEAR', '2025-2026');

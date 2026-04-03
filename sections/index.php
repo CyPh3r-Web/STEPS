@@ -3,6 +3,9 @@ $pageTitle = 'Sections';
 require_once __DIR__ . '/../includes/header.php';
 requireRole('teacher');
 
+$isAdmin = ($_SESSION['role'] ?? '') === 'admin';
+$currentUserId = $_SESSION['user_id'] ?? 0;
+
 $strands = $pdo->query("SELECT * FROM strands ORDER BY strand_name")->fetchAll();
 $teachers = $pdo->query("SELECT id, full_name FROM users WHERE role IN ('teacher','admin') AND status = 'active' ORDER BY full_name")->fetchAll();
 
@@ -11,12 +14,13 @@ $error = '';
 $openModal = '';
 $editId = $_GET['edit_id'] ?? '';
 
-// Handle Add
+// Handle Add - auto-assign adviser if teacher adds section
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'add') {
     $sectionName = sanitize($_POST['section_name']);
     $gradeLevel = (int)$_POST['grade_level'];
     $strand = sanitize($_POST['strand']);
-    $adviserId = $_POST['adviser_id'] ?: null;
+    // If teacher adds section, auto-assign themselves as adviser
+    $adviserId = $isAdmin ? ($_POST['adviser_id'] ?: null) : $currentUserId;
     $schoolYear = sanitize($_POST['school_year']);
 
     if (empty($sectionName) || empty($gradeLevel) || empty($schoolYear)) {
@@ -37,45 +41,80 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'add')
     }
 }
 
-// Handle Edit
+// Handle Edit - teachers can only edit their own sections
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'edit') {
     $id = (int)$_POST['section_id'];
     $sectionName = sanitize($_POST['section_name']);
     $gradeLevel = (int)$_POST['grade_level'];
     $strand = sanitize($_POST['strand']);
-    $adviserId = $_POST['adviser_id'] ?: null;
+    // Teachers cannot change adviser - use existing or current user
+    $adviserId = $isAdmin ? ($_POST['adviser_id'] ?: null) : null;
     $schoolYear = sanitize($_POST['school_year']);
 
-    if (empty($sectionName) || empty($gradeLevel) || empty($schoolYear)) {
-        $error = 'Please fill in all required fields.';
-        $editId = $id;
-        $openModal = 'edit';
-    } else {
-        $check = $pdo->prepare("SELECT id FROM sections WHERE section_name = ? AND grade_level = ? AND school_year = ? AND id != ?");
-        $check->execute([$sectionName, $gradeLevel, $schoolYear, $id]);
-        if ($check->fetch()) {
-            $error = 'This section already exists for the selected grade level and school year.';
+    // Verify teacher owns this section
+    if (!$isAdmin) {
+        $ownerCheck = $pdo->prepare("SELECT adviser_id FROM sections WHERE id = ?");
+        $ownerCheck->execute([$id]);
+        $owner = $ownerCheck->fetch();
+        if (!$owner || $owner['adviser_id'] != $currentUserId) {
+            $error = 'You can only edit sections that you are assigned to as adviser.';
+            $editId = $id;
+            $openModal = 'edit';
+        }
+    }
+
+    if (empty($error)) {
+        if (empty($sectionName) || empty($gradeLevel) || empty($schoolYear)) {
+            $error = 'Please fill in all required fields.';
             $editId = $id;
             $openModal = 'edit';
         } else {
-            $stmt = $pdo->prepare("UPDATE sections SET section_name=?, grade_level=?, strand=?, adviser_id=?, school_year=? WHERE id=?");
-            $stmt->execute([$sectionName, $gradeLevel, $strand ?: null, $adviserId, $schoolYear, $id]);
-            header('Location: ' . BASE_URL . 'sections/index.php?msg=updated');
-            exit;
+            $check = $pdo->prepare("SELECT id FROM sections WHERE section_name = ? AND grade_level = ? AND school_year = ? AND id != ?");
+            $check->execute([$sectionName, $gradeLevel, $schoolYear, $id]);
+            if ($check->fetch()) {
+                $error = 'This section already exists for the selected grade level and school year.';
+                $editId = $id;
+                $openModal = 'edit';
+            } else {
+                // If teacher, keep existing adviser_id
+                if (!$isAdmin && $adviserId === null) {
+                    $stmt = $pdo->prepare("UPDATE sections SET section_name=?, grade_level=?, strand=?, school_year=? WHERE id=?");
+                    $stmt->execute([$sectionName, $gradeLevel, $strand ?: null, $schoolYear, $id]);
+                } else {
+                    $stmt = $pdo->prepare("UPDATE sections SET section_name=?, grade_level=?, strand=?, adviser_id=?, school_year=? WHERE id=?");
+                    $stmt->execute([$sectionName, $gradeLevel, $strand ?: null, $adviserId, $schoolYear, $id]);
+                }
+                header('Location: ' . BASE_URL . 'sections/index.php?msg=updated');
+                exit;
+            }
         }
     }
 }
 
-// Handle Delete
+// Handle Delete - teachers can only delete their own sections
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_id'])) {
-    $studentCount = $pdo->prepare("SELECT COUNT(*) as cnt FROM students WHERE section_id = ? AND status = 'active'");
-    $studentCount->execute([$_POST['delete_id']]);
-    if ($studentCount->fetch()['cnt'] > 0) {
-        $error = 'Cannot delete this section — it still has active students assigned.';
-    } else {
-        $pdo->prepare("DELETE FROM sections WHERE id = ?")->execute([$_POST['delete_id']]);
-        header('Location: ' . BASE_URL . 'sections/index.php?msg=deleted');
-        exit;
+    $deleteId = (int)$_POST['delete_id'];
+    
+    // Verify teacher owns this section
+    if (!$isAdmin) {
+        $ownerCheck = $pdo->prepare("SELECT adviser_id FROM sections WHERE id = ?");
+        $ownerCheck->execute([$deleteId]);
+        $owner = $ownerCheck->fetch();
+        if (!$owner || $owner['adviser_id'] != $currentUserId) {
+            $error = 'You can only delete sections that you are assigned to as adviser.';
+        }
+    }
+    
+    if (empty($error)) {
+        $studentCount = $pdo->prepare("SELECT COUNT(*) as cnt FROM students WHERE section_id = ? AND status = 'active'");
+        $studentCount->execute([$deleteId]);
+        if ($studentCount->fetch()['cnt'] > 0) {
+            $error = 'Cannot delete this section — it still has active students assigned.';
+        } else {
+            $pdo->prepare("DELETE FROM sections WHERE id = ?")->execute([$deleteId]);
+            header('Location: ' . BASE_URL . 'sections/index.php?msg=deleted');
+            exit;
+        }
     }
 }
 
@@ -88,12 +127,21 @@ if ($editId) {
     if ($editSection && !$openModal) $openModal = 'edit';
 }
 
-// Fetch sections with counts
-$sections = $pdo->query("SELECT sec.*, u.full_name as adviser_name,
+// Fetch sections with counts - filter by adviser_id for teachers
+$sectionsQuery = "SELECT sec.*, u.full_name as adviser_name,
     (SELECT COUNT(*) FROM students s WHERE s.section_id = sec.id AND s.status = 'active') as student_count
     FROM sections sec
     LEFT JOIN users u ON sec.adviser_id = u.id
-    ORDER BY sec.school_year DESC, sec.grade_level, sec.section_name")->fetchAll();
+    " . ($isAdmin ? "" : "WHERE sec.adviser_id = ?") . "
+    ORDER BY sec.school_year DESC, sec.grade_level, sec.section_name";
+
+if ($isAdmin) {
+    $sections = $pdo->query($sectionsQuery)->fetchAll();
+} else {
+    $stmt = $pdo->prepare($sectionsQuery);
+    $stmt->execute([$currentUserId]);
+    $sections = $stmt->fetchAll();
+}
 
 require_once __DIR__ . '/../includes/sidebar.php';
 ?>
@@ -243,6 +291,7 @@ $shsCount = count(array_filter($sections, fn($s) => $s['grade_level'] >= 11));
                         <?php endforeach; ?>
                     </select>
                 </div>
+                <?php if ($isAdmin): ?>
                 <div>
                     <label class="form-label">Adviser</label>
                     <select name="adviser_id" class="form-select">
@@ -252,6 +301,12 @@ $shsCount = count(array_filter($sections, fn($s) => $s['grade_level'] >= 11));
                         <?php endforeach; ?>
                     </select>
                 </div>
+                <?php else: ?>
+                <div>
+                    <label class="form-label">Adviser</label>
+                    <p class="text-sm text-gray-600 py-2"><i class="fas fa-user-check text-green-500 mr-2"></i>You will be assigned as the adviser</p>
+                </div>
+                <?php endif; ?>
                 <div>
                     <label class="form-label">School Year <span class="text-red-500">*</span></label>
                     <input type="text" name="school_year" class="form-input" required value="<?= effectiveSchoolYear() ?>" placeholder="e.g., 2025-2026">
@@ -308,6 +363,7 @@ $shsCount = count(array_filter($sections, fn($s) => $s['grade_level'] >= 11));
                         <?php endforeach; ?>
                     </select>
                 </div>
+                <?php if ($isAdmin): ?>
                 <div>
                     <label class="form-label">Adviser</label>
                     <select name="adviser_id" id="edit_sec_adviser" class="form-select">
@@ -317,6 +373,12 @@ $shsCount = count(array_filter($sections, fn($s) => $s['grade_level'] >= 11));
                         <?php endforeach; ?>
                     </select>
                 </div>
+                <?php else: ?>
+                <div>
+                    <label class="form-label">Adviser</label>
+                    <p class="text-sm text-gray-600 py-2"><i class="fas fa-user-check text-green-500 mr-2"></i>You are the adviser for this section</p>
+                </div>
+                <?php endif; ?>
                 <div>
                     <label class="form-label">School Year <span class="text-red-500">*</span></label>
                     <input type="text" name="school_year" id="edit_sec_sy" class="form-input" required>

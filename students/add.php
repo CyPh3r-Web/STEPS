@@ -31,10 +31,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($check->fetch()) {
             $error = 'A student with this LRN already exists.';
         } else {
-            $stmt = $pdo->prepare("INSERT INTO students (lrn, first_name, last_name, middle_name, name_suffix, gender, birthdate, section_id, strand_id, school_year) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$lrn, $firstName, $lastName, $middleName, $nameSuffix, $gender, $birthdate ?: null, $sectionId, $strandId, $schoolYear]);
-            header('Location: ' . BASE_URL . 'students/index.php?msg=added');
-            exit;
+            try {
+                $stmt = $pdo->prepare("INSERT INTO students (lrn, first_name, last_name, middle_name, name_suffix, gender, birthdate, section_id, strand_id, school_year, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                $stmt->execute([$lrn, $firstName, $lastName, $middleName, $nameSuffix, $gender, $birthdate ?: null, $sectionId, $strandId, $schoolYear, $_SESSION['user_id'] ?? null]);
+                header('Location: ' . BASE_URL . 'students/index.php?msg=added');
+                exit;
+            } catch (PDOException $e) {
+                $error = 'Database error: ' . $e->getMessage();
+            }
         }
     }
 }

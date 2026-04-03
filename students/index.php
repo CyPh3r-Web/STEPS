@@ -49,10 +49,15 @@ if (!$isGuidance && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actio
             $error = 'A student with this LRN already exists.';
             $openModal = 'add';
         } else {
-            $stmt = $pdo->prepare("INSERT INTO students (lrn, first_name, last_name, middle_name, name_suffix, gender, birthdate, section_id, strand_id, school_year) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$lrn, $firstName, $lastName, $middleName, $nameSuffix, $gender, $birthdate ?: null, $sectionId, $strandId, $schoolYear]);
-            header('Location: ' . BASE_URL . 'students/index.php?msg=added');
-            exit;
+            try {
+                $stmt = $pdo->prepare("INSERT INTO students (lrn, first_name, last_name, middle_name, name_suffix, gender, birthdate, section_id, strand_id, school_year, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                $stmt->execute([$lrn, $firstName, $lastName, $middleName, $nameSuffix, $gender, $birthdate ?: null, $sectionId, $strandId, $schoolYear, $_SESSION['user_id'] ?? null]);
+                header('Location: ' . BASE_URL . 'students/index.php?msg=added');
+                exit;
+            } catch (PDOException $e) {
+                $error = 'Database error: ' . $e->getMessage();
+                $openModal = 'add';
+            }
         }
     }
 }
@@ -136,21 +141,37 @@ if ($userRole === 'teacher') {
 
 // Query students list with average grade
 $query = "SELECT s.*, sec.section_name, sec.grade_level, st.strand_code, st.strand_name,
-          (SELECT AVG(g.grade) FROM grades g WHERE g.student_id = s.id) as avg_grade
+          (SELECT AVG(g.grade) FROM grades g WHERE g.student_id = s.id) as avg_grade,
+          u.full_name as created_by_name
           FROM students s
           LEFT JOIN sections sec ON s.section_id = sec.id
           LEFT JOIN strands st ON s.strand_id = st.id
+          LEFT JOIN users u ON s.created_by = u.id
           WHERE s.status = 'active'";
 $params = [];
 
-// For teachers: filter by their assigned sections
-if ($userRole === 'teacher' && !empty($teacherSectionIds)) {
-    $placeholders = implode(',', array_fill(0, count($teacherSectionIds), '?'));
-    $query .= " AND s.section_id IN ($placeholders)";
-    $params = array_merge($params, $teacherSectionIds);
-} elseif ($userRole === 'teacher' && empty($teacherSectionIds)) {
-    // Teacher has no assigned sections - show no students
-    $query .= " AND 1=0";
+// For teachers: filter by students they created OR their assigned sections
+if ($userRole === 'teacher') {
+    // First get their assigned sections
+    try {
+        $teacherSectionsStmt = $pdo->prepare("SELECT section_id FROM teacher_sections WHERE teacher_id = ? AND school_year = ?");
+        $teacherSectionsStmt->execute([$currentUserId, effectiveSchoolYear()]);
+        $teacherSectionIds = $teacherSectionsStmt->fetchAll(PDO::FETCH_COLUMN);
+    } catch (PDOException $e) {
+        // Table may not exist yet, ignore
+    }
+    
+    // Filter: show students created by this teacher OR in their assigned sections
+    if (!empty($teacherSectionIds)) {
+        $placeholders = implode(',', array_fill(0, count($teacherSectionIds), '?'));
+        $query .= " AND (s.created_by = ? OR s.section_id IN ($placeholders))";
+        $params = array_merge($params, [$currentUserId]);
+        $params = array_merge($params, $teacherSectionIds);
+    } else {
+        // No assigned sections - only show students they created
+        $query .= " AND s.created_by = ?";
+        $params[] = $currentUserId;
+    }
 }
 
 if ($search) {
@@ -421,6 +442,7 @@ $filterBase = array_filter(['search' => $search, 'section' => $sectionFilter, 's
                     <th>Section</th>
                     <th>Grade Level</th>
                     <th>Strand</th>
+                    <th>Added By</th>
                     <?php if (!$isGuidance): ?>
                     <th>Avg</th>
                     <th>Status</th>
@@ -450,6 +472,7 @@ $filterBase = array_filter(['search' => $search, 'section' => $sectionFilter, 's
                             <?php endif; ?>
                         </td>
                         <?php endif; ?>
+                        <td class="text-xs text-gray-500"><?= sanitize($s['created_by_name'] ?? 'Unknown') ?></td>
                         <td>
                             <div class="flex items-center gap-2">
                                 <a href="<?= BASE_URL ?>students/view.php?id=<?= $s['id'] ?>" class="text-blue-600 hover:text-blue-800" title="View"><i class="fas fa-eye"></i></a>
@@ -465,7 +488,7 @@ $filterBase = array_filter(['search' => $search, 'section' => $sectionFilter, 's
                     </tr>
                 <?php endforeach; ?>
                 <?php if (empty($students)): ?>
-                    <tr><td colspan="<?= $isGuidance ? 7 : 9 ?>" class="text-center text-gray-400 py-8">No students found.</td></tr>
+                    <tr><td colspan="<?= $isGuidance ? 8 : 10 ?>" class="text-center text-gray-400 py-8">No students found.</td></tr>
                 <?php endif; ?>
             </tbody>
         </table>
