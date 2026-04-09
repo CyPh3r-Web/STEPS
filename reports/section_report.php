@@ -3,7 +3,18 @@ $pageTitle = 'Section Report';
 require_once __DIR__ . '/../includes/header.php';
 requireRole(['teacher', 'guidance']);
 
-$sections = $pdo->query("SELECT * FROM sections ORDER BY grade_level, section_name")->fetchAll();
+$currentUserId = $_SESSION['user_id'] ?? 0;
+$userRole = $_SESSION['role'] ?? '';
+
+// Teachers only see sections where they are the adviser
+if ($userRole === 'teacher') {
+    $sectionsStmt = $pdo->prepare("SELECT * FROM sections WHERE adviser_id = ? ORDER BY grade_level, section_name");
+    $sectionsStmt->execute([$currentUserId]);
+    $sections = $sectionsStmt->fetchAll();
+} else {
+    $sections = $pdo->query("SELECT * FROM sections ORDER BY grade_level, section_name")->fetchAll();
+}
+
 $sectionId = $_GET['section_id'] ?? '';
 $section = null;
 $students = [];
@@ -14,13 +25,22 @@ if ($sectionId) {
     $section = $secStmt->fetch();
 
     if ($section) {
-        $stmt = $pdo->prepare("SELECT s.*, st.strand_code, AVG(g.grade) as avg_grade
+        $studentSql = "SELECT s.*, st.strand_code, AVG(g.grade) as avg_grade
             FROM students s
             LEFT JOIN strands st ON s.strand_id = st.id
             LEFT JOIN grades g ON s.id = g.student_id
-            WHERE s.section_id = ? AND s.status = 'active'
-            GROUP BY s.id ORDER BY s.last_name, s.first_name");
-        $stmt->execute([$sectionId]);
+            WHERE s.section_id = ? AND s.status = 'active'";
+        $studentParams = [$sectionId];
+        
+        // Teachers only see students they created
+        if ($userRole === 'teacher') {
+            $studentSql .= " AND s.created_by = ?";
+            $studentParams[] = $currentUserId;
+        }
+        
+        $studentSql .= " GROUP BY s.id ORDER BY s.last_name, s.first_name";
+        $stmt = $pdo->prepare($studentSql);
+        $stmt->execute($studentParams);
         $students = $stmt->fetchAll();
 
         $reportData = json_encode([

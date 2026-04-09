@@ -5,20 +5,43 @@ requireRole(['teacher', 'guidance']);
 
 $studentId = $_GET['student_id'] ?? 0;
 $student = null;
+
+$currentUserId = $_SESSION['user_id'] ?? 0;
+$userRole = $_SESSION['role'] ?? '';
+
 if ($studentId) {
-    $stmt = $pdo->prepare("SELECT s.*, sec.section_name, sec.grade_level, st.strand_code FROM students s
+    $studentSql = "SELECT s.*, sec.section_name, sec.grade_level, st.strand_code FROM students s
         LEFT JOIN sections sec ON s.section_id = sec.id
         LEFT JOIN strands st ON s.strand_id = st.id
-        WHERE s.id = ?");
-    $stmt->execute([$studentId]);
+        WHERE s.id = ?";
+    $studentParams = [$studentId];
+    
+    // Teachers can only access students they created
+    if ($userRole === 'teacher') {
+        $studentSql .= " AND s.created_by = ?";
+        $studentParams[] = $currentUserId;
+    }
+    $stmt = $pdo->prepare($studentSql);
+    $stmt->execute($studentParams);
     $student = $stmt->fetch();
 }
 
-$students = $pdo->query("SELECT s.id, s.lrn, s.first_name, s.last_name, sec.section_name, sec.grade_level
+// Student list for dropdown
+$studentsSql = "SELECT s.id, s.lrn, s.first_name, s.last_name, sec.section_name, sec.grade_level
     FROM students s
     LEFT JOIN sections sec ON s.section_id = sec.id
-    WHERE s.status = 'active' AND sec.grade_level IN (11, 12)
-    ORDER BY s.last_name, s.first_name")->fetchAll();
+    WHERE s.status = 'active' AND sec.grade_level IN (11, 12)";
+$studentsParams = [];
+
+// Teachers only see students they created
+if ($userRole === 'teacher') {
+    $studentsSql .= " AND s.created_by = ?";
+    $studentsParams[] = $currentUserId;
+}
+$studentsSql .= " ORDER BY s.last_name, s.first_name";
+$stmt = $pdo->prepare($studentsSql);
+$stmt->execute($studentsParams);
+$students = $stmt->fetchAll();
 
 $error = '';
 $success = '';

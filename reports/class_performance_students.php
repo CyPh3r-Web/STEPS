@@ -18,8 +18,17 @@ if ($subjectId <= 0 || !in_array($category, ['weak', 'at_risk', 'proficient'], t
     exit;
 }
 
+$currentUserId = $_SESSION['user_id'] ?? 0;
+$userRole = $_SESSION['role'] ?? '';
+
 $conditions = ['g.subject_id = :subject_id', "s.status = 'active'"];
 $params = ['subject_id' => $subjectId];
+
+// Teachers only see students they created
+if ($userRole === 'teacher') {
+    $conditions[] = 's.created_by = :created_by';
+    $params['created_by'] = $currentUserId;
+}
 
 if ($sectionId) {
     $conditions[] = 's.section_id = :section_id';

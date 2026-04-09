@@ -21,10 +21,11 @@ $avgEmployability = 0;
 $recentRecs = [];
 
 if ($role === 'teacher') {
+    $currentUserId = $_SESSION['user_id'] ?? 0;
     $sections = $pdo->query('SELECT * FROM sections ORDER BY grade_level, section_name')->fetchAll();
 
-    $studentQuery = "SELECT COUNT(*) as total FROM students WHERE status = 'active'";
-    $studentParams = [];
+    $studentQuery = "SELECT COUNT(*) as total FROM students WHERE status = 'active' AND created_by = ?";
+    $studentParams = [$currentUserId];
     if ($sectionFilter) {
         $studentQuery .= ' AND section_id = ?';
         $studentParams[] = $sectionFilter;
@@ -34,8 +35,8 @@ if ($role === 'teacher') {
     $totalStudents = $stmt->fetch()['total'];
 
     $avgQuery = "SELECT AVG(g.grade) as avg_grade FROM grades g
-                 JOIN students s ON g.student_id = s.id WHERE s.status = 'active'";
-    $avgParams = [];
+                 JOIN students s ON g.student_id = s.id WHERE s.status = 'active' AND s.created_by = ?";
+    $avgParams = [$currentUserId];
     if ($sectionFilter) {
         $avgQuery .= ' AND s.section_id = ?';
         $avgParams[] = $sectionFilter;
@@ -47,8 +48,8 @@ if ($role === 'teacher') {
     $atRiskQuery = "SELECT COUNT(DISTINCT g.student_id) as cnt FROM (
         SELECT student_id, AVG(grade) as avg_g FROM grades
         JOIN students ON grades.student_id = students.id
-        WHERE students.status = 'active'";
-    $atRiskParams = [];
+        WHERE students.status = 'active' AND students.created_by = ?";
+    $atRiskParams = [$currentUserId];
     if ($sectionFilter) {
         $atRiskQuery .= ' AND students.section_id = ?';
         $atRiskParams[] = $sectionFilter;
@@ -61,8 +62,8 @@ if ($role === 'teacher') {
     $weakQuery = "SELECT COUNT(DISTINCT g.student_id) as cnt FROM (
         SELECT student_id, AVG(grade) as avg_g FROM grades
         JOIN students ON grades.student_id = students.id
-        WHERE students.status = 'active'";
-    $weakParams = [];
+        WHERE students.status = 'active' AND students.created_by = ?";
+    $weakParams = [$currentUserId];
     if ($sectionFilter) {
         $weakQuery .= ' AND students.section_id = ?';
         $weakParams[] = $sectionFilter;
@@ -75,8 +76,8 @@ if ($role === 'teacher') {
     $excelQuery = "SELECT COUNT(DISTINCT g.student_id) as cnt FROM (
         SELECT student_id, AVG(grade) as avg_g FROM grades
         JOIN students ON grades.student_id = students.id
-        WHERE students.status = 'active'";
-    $excelParams = [];
+        WHERE students.status = 'active' AND students.created_by = ?";
+    $excelParams = [$currentUserId];
     if ($sectionFilter) {
         $excelQuery .= ' AND students.section_id = ?';
         $excelParams[] = $sectionFilter;
@@ -94,12 +95,12 @@ if ($role === 'teacher') {
         FROM students s
         JOIN grades g ON s.id = g.student_id
         LEFT JOIN sections sec ON s.section_id = sec.id
-        WHERE s.status = 'active'
+        WHERE s.status = 'active' AND s.created_by = ?
         GROUP BY s.id ORDER BY avg_grade ASC LIMIT 10");
-    $recentGrades->execute();
+    $recentGrades->execute([$currentUserId]);
     $lowPerformers = $recentGrades->fetchAll();
 
-    $dashTopPerformers = $pdo->query("SELECT ranked.* FROM (
+    $dashTopPerformersStmt = $pdo->prepare("SELECT ranked.* FROM (
         SELECT
             s.id as student_id,
             CONCAT(s.first_name, ' ', s.last_name) as student_name,
@@ -112,7 +113,7 @@ if ($role === 'teacher') {
         JOIN strands st ON s.strand_id = st.id
         JOIN grades g ON s.id = g.student_id
         JOIN subjects sub ON g.subject_id = sub.id
-        WHERE s.status = 'active'
+        WHERE s.status = 'active' AND s.created_by = ?
           AND sub.subject_type = 'specialized'
           AND sub.strand_id = s.strand_id
         GROUP BY s.id, s.section_id
@@ -120,7 +121,56 @@ if ($role === 'teacher') {
     ) ranked
     WHERE ranked.section_rank <= 3
     ORDER BY ranked.specialized_avg DESC
-    LIMIT 5")->fetchAll();
+    LIMIT 5");
+    $dashTopPerformersStmt->execute([$currentUserId]);
+    $dashTopPerformers = $dashTopPerformersStmt->fetchAll();
+
+    // Section Performance - only for teacher's created students
+    $sectionQuery = "SELECT sec.id, sec.section_name, sec.grade_level, st.strand_code as strand,
+        COUNT(DISTINCT s.id) as student_count,
+        AVG(g.grade) as avg_grade,
+        MIN(g.grade) as min_grade,
+        MAX(g.grade) as max_grade
+        FROM sections sec
+        LEFT JOIN students s ON s.section_id = sec.id AND s.status = 'active' AND s.created_by = ?
+        LEFT JOIN grades g ON g.student_id = s.id
+        LEFT JOIN strands st ON s.strand_id = st.id
+        GROUP BY sec.id, sec.section_name, sec.grade_level, st.strand_code
+        HAVING student_count > 0
+        ORDER BY sec.grade_level, sec.section_name";
+    $sectionPerfStmt = $pdo->prepare($sectionQuery);
+    $sectionPerfStmt->execute([$currentUserId]);
+    $sectionPerformance = $sectionPerfStmt->fetchAll();
+
+    // Quarter Performance - only for teacher's created students
+    $quarterQuery = "SELECT g.quarter,
+        AVG(g.grade) as avg_grade,
+        COUNT(DISTINCT g.student_id) as students
+        FROM grades g
+        JOIN students s ON g.student_id = s.id
+        WHERE s.status = 'active' AND s.created_by = ?
+        GROUP BY g.quarter
+        ORDER BY g.quarter";
+    $quarterStmt = $pdo->prepare($quarterQuery);
+    $quarterStmt->execute([$currentUserId]);
+    $quarterData = $quarterStmt->fetchAll();
+
+    // Subject Performance - only for teacher's created students
+    $subQuery = "SELECT sub.id as subject_id, sub.subject_name, sub.subject_code,
+        AVG(g.grade) as avg_grade,
+        COUNT(DISTINCT g.student_id) as student_count,
+        SUM(CASE WHEN g.grade < 75 THEN 1 ELSE 0 END) as weak_count,
+        SUM(CASE WHEN g.grade >= 75 AND g.grade < 80 THEN 1 ELSE 0 END) as at_risk_count,
+        SUM(CASE WHEN g.grade >= 80 THEN 1 ELSE 0 END) as prof_count
+        FROM subjects sub
+        JOIN grades g ON g.subject_id = sub.id
+        JOIN students s ON g.student_id = s.id
+        WHERE s.status = 'active' AND s.created_by = ?
+        GROUP BY sub.id, sub.subject_name, sub.subject_code
+        ORDER BY avg_grade ASC";
+    $subPerfStmt = $pdo->prepare($subQuery);
+    $subPerfStmt->execute([$currentUserId]);
+    $subjectPerformance = $subPerfStmt->fetchAll();
 }
 
 if ($role === 'guidance') {

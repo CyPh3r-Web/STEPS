@@ -3,7 +3,12 @@ $pageTitle = 'Manage Grades';
 require_once __DIR__ . '/../includes/header.php';
 requireRole('teacher');
 
-$sections = $pdo->query("SELECT * FROM sections ORDER BY grade_level, section_name")->fetchAll();
+$teacherId = $_SESSION['user_id'] ?? 0;
+
+// Teachers only see sections where they are the adviser
+$sectionsStmt = $pdo->prepare("SELECT * FROM sections WHERE adviser_id = ? ORDER BY grade_level, section_name");
+$sectionsStmt->execute([$teacherId]);
+$sections = $sectionsStmt->fetchAll();
 
 $sectionFilter = $_GET['section'] ?? '';
 $subjectFilter = $_GET['subject'] ?? '';
@@ -101,8 +106,10 @@ $gradedCount = 0;
 $ungradedCount = 0;
 
 if ($sectionFilter && $subjectFilter && $quarterFilter) {
-    $stmt = $pdo->prepare(
-        "SELECT s.id, s.lrn, s.first_name, s.last_name,
+    $currentUserId = $_SESSION['user_id'] ?? 0;
+    $userRole = $_SESSION['role'] ?? '';
+    
+    $gradesSql = "SELECT s.id, s.lrn, s.first_name, s.last_name,
             g.id        AS grade_id,
             g.grade     AS existing_grade,
             g.updated_at AS graded_at,
@@ -114,10 +121,18 @@ if ($sectionFilter && $subjectFilter && $quarterFilter) {
             AND g.quarter    = ?
             AND g.school_year = ?
          LEFT JOIN users u ON u.id = g.encoded_by
-         WHERE s.section_id = ? AND s.status = 'active'
-         ORDER BY s.last_name, s.first_name"
-    );
-    $stmt->execute([$subjectFilter, $quarterFilter, effectiveSchoolYear(), $sectionFilter]);
+         WHERE s.section_id = ? AND s.status = 'active'";
+    $gradesParams = [$subjectFilter, $quarterFilter, effectiveSchoolYear(), $sectionFilter];
+    
+    // Teachers only see students they created
+    if ($userRole === 'teacher') {
+        $gradesSql .= " AND s.created_by = ?";
+        $gradesParams[] = $currentUserId;
+    }
+    $gradesSql .= " ORDER BY s.last_name, s.first_name";
+    
+    $stmt = $pdo->prepare($gradesSql);
+    $stmt->execute($gradesParams);
     $students = $stmt->fetchAll();
 
     foreach ($students as $s) {
@@ -130,8 +145,7 @@ if ($sectionFilter && $subjectFilter && $quarterFilter) {
 // scoped to current school year so teacher sees the full picture
 $overviewGrades = [];
 if ($sectionFilter) {
-    $ovStmt = $pdo->prepare(
-        "SELECT s.last_name, s.first_name, s.lrn,
+    $overviewSql = "SELECT s.last_name, s.first_name, s.lrn,
                 sub.subject_code, sub.subject_name,
                 g.quarter, g.grade, g.school_year, g.updated_at,
                 u.full_name AS encoded_by_name
@@ -139,10 +153,18 @@ if ($sectionFilter) {
          JOIN students s   ON s.id = g.student_id
          JOIN subjects sub ON sub.id = g.subject_id
          LEFT JOIN users u ON u.id = g.encoded_by
-         WHERE s.section_id = ? AND g.school_year = ?
-         ORDER BY s.last_name, s.first_name, sub.subject_name, g.quarter"
-    );
-    $ovStmt->execute([$sectionFilter, effectiveSchoolYear()]);
+         WHERE s.section_id = ? AND g.school_year = ?";
+    $overviewParams = [$sectionFilter, effectiveSchoolYear()];
+    
+    // Teachers only see students they created
+    if ($userRole === 'teacher') {
+        $overviewSql .= " AND s.created_by = ?";
+        $overviewParams[] = $currentUserId;
+    }
+    $overviewSql .= " ORDER BY s.last_name, s.first_name, sub.subject_name, g.quarter";
+    
+    $ovStmt = $pdo->prepare($overviewSql);
+    $ovStmt->execute($overviewParams);
     $overviewGrades = $ovStmt->fetchAll();
 }
 
@@ -202,7 +224,17 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 <?php endif; ?>
 
-<?php if (empty($teacherSubjectIds) && empty($subjects)): ?>
+<?php if (empty($sections)): ?>
+<div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
+    <div class="flex items-start gap-3">
+        <i class="fas fa-exclamation-triangle text-amber-600 mt-0.5"></i>
+        <div>
+            <p class="text-sm font-medium text-amber-800">No Sections Assigned</p>
+            <p class="text-xs text-amber-700 mt-1">You are not assigned as an adviser to any section. Please contact the administrator to be assigned to a section.</p>
+        </div>
+    </div>
+</div>
+<?php elseif (empty($teacherSubjectIds) && empty($subjects)): ?>
 <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
     <div class="flex items-start gap-3">
         <i class="fas fa-exclamation-triangle text-amber-600 mt-0.5"></i>

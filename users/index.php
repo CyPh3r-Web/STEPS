@@ -21,6 +21,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     } elseif (!in_array($role, ['teacher', 'guidance'], true)) {
         $error = 'You can only create Teacher or Guidance Counselor accounts.';
         $openModal = 'add';
+    } elseif (!empty($email) && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $error = 'Please enter a valid email address.';
+        $openModal = 'add';
     } else {
         $nameParts = explode(' ', trim($fullName));
         $lastName = strtolower(preg_replace('/[^a-zA-Z]/', '', end($nameParts)));
@@ -32,22 +35,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             $username = $prefix . '_' . $lastName;
         }
 
-        $baseUsername = $username;
-        $counter = 1;
-        while (true) {
-            $check = $pdo->prepare("SELECT id FROM users WHERE username = ?");
-            $check->execute([$username]);
-            if (!$check->fetch()) break;
-            $username = $baseUsername . $counter;
-            $counter++;
+        // Check for duplicate username - do NOT auto-append numbers
+        $check = $pdo->prepare("SELECT id FROM users WHERE username = ?");
+        $check->execute([$username]);
+        if ($check->fetch()) {
+            $error = 'User already exists. Please choose a different username.';
+            $openModal = 'add';
+        } elseif (!empty($email)) {
+            // Check for duplicate email
+            $checkEmail = $pdo->prepare("SELECT id FROM users WHERE email = ?");
+            $checkEmail->execute([$email]);
+            if ($checkEmail->fetch()) {
+                $error = 'A user with this email address already exists. Please use a different email.';
+                $openModal = 'add';
+            }
         }
 
-        $defaultPassword = password_hash('password', PASSWORD_DEFAULT);
-        $stmt = $pdo->prepare("INSERT INTO users (username, password, full_name, email, role) VALUES (?, ?, ?, ?, ?)");
-        $stmt->execute([$username, $defaultPassword, $fullName, $email ?: null, $role]);
+        if (empty($error)) {
+            $defaultPassword = password_hash('password', PASSWORD_DEFAULT);
+            $stmt = $pdo->prepare("INSERT INTO users (username, password, full_name, email, role) VALUES (?, ?, ?, ?, ?)");
+            $stmt->execute([$username, $defaultPassword, $fullName, $email ?: null, $role]);
 
-        $success = 'created';
-        $createdUsername = $username;
+            $success = 'created';
+            $createdUsername = $username;
+        }
     }
 }
 

@@ -16,6 +16,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'Please fill in all required fields.';
     } elseif (!in_array($role, ['teacher', 'guidance'], true)) {
         $error = 'Only Teacher or Guidance Counselor accounts can be created here.';
+    } elseif (!empty($email) && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $error = 'Please enter a valid email address.';
     } else {
         // Generate username: role_lastname (lowercase, no spaces)
         $nameParts = explode(' ', trim($fullName));
@@ -28,23 +30,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $username = $prefix . '_' . $lastName;
         }
 
-        // Check for exact duplicate username - prevent creation if exists
+        // Check for duplicate username - do NOT auto-append numbers
         $check = $pdo->prepare("SELECT id FROM users WHERE username = ?");
         $check->execute([$username]);
         if ($check->fetch()) {
-            $error = 'A user with this username already exists. Please use a different name or custom username.';
-        } else {
-            // Check for duplicate with auto-increment
-            $baseUsername = $username;
-            $counter = 1;
-            while (true) {
-                $check = $pdo->prepare("SELECT id FROM users WHERE username = ?");
-                $check->execute([$username]);
-                if (!$check->fetch()) break;
-                $username = $baseUsername . $counter;
-                $counter++;
+            $error = 'User already exists. Please choose a different username.';
+        } elseif (!empty($email)) {
+            // Check for duplicate email
+            $checkEmail = $pdo->prepare("SELECT id FROM users WHERE email = ?");
+            $checkEmail->execute([$email]);
+            if ($checkEmail->fetch()) {
+                $error = 'A user with this email address already exists. Please use a different email.';
             }
+        }
 
+        if (empty($error)) {
             $defaultPassword = password_hash('password', PASSWORD_DEFAULT);
 
             $stmt = $pdo->prepare("INSERT INTO users (username, password, full_name, email, role) VALUES (?, ?, ?, ?, ?)");
@@ -115,7 +115,7 @@ document.addEventListener('DOMContentLoaded', function() {
             <ul class="text-xs text-blue-700 space-y-1">
                 <li><i class="fas fa-check mr-2"></i>Teacher: <span class="font-mono font-semibold">teacher_lastname</span></li>
                 <li><i class="fas fa-check mr-2"></i>Guidance: <span class="font-mono font-semibold">guidance_lastname</span></li>
-                <li><i class="fas fa-check mr-2"></i>If duplicate, a number is appended automatically (e.g., teacher_santos1)</li>
+                <li><i class="fas fa-check mr-2"></i>If username exists, use a custom username</li>
             </ul>
         </div>
 

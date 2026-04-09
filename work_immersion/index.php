@@ -6,8 +6,18 @@ requireRole(['teacher', 'guidance']);
 $sectionFilter = $_GET['section'] ?? '';
 $schoolYearFilter = $_GET['school_year'] ?? effectiveSchoolYear();
 
+$currentUserId = $_SESSION['user_id'] ?? 0;
+$userRole = $_SESSION['role'] ?? '';
+
 $where = ["s.status = 'active'", "sec.grade_level IN (11, 12)"];
 $params = [];
+
+// Teachers only see students they created
+if ($userRole === 'teacher') {
+    $where[] = 's.created_by = ?';
+    $params[] = $currentUserId;
+}
+
 if ($sectionFilter) {
     $where[] = 's.section_id = ?';
     $params[] = $sectionFilter;

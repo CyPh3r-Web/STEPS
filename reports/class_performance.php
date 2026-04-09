@@ -4,7 +4,17 @@ require_once __DIR__ . '/../includes/header.php';
 requireRole('teacher');
 
 $sectionFilter = $_GET['section'] ?? '';
-$sections = $pdo->query("SELECT * FROM sections ORDER BY grade_level, section_name")->fetchAll();
+$currentUserId = $_SESSION['user_id'] ?? 0;
+$userRole = $_SESSION['role'] ?? '';
+
+// Teachers only see sections where they are the adviser
+if ($userRole === 'teacher') {
+    $sectionsStmt = $pdo->prepare("SELECT * FROM sections WHERE adviser_id = ? ORDER BY grade_level, section_name");
+    $sectionsStmt->execute([$currentUserId]);
+    $sections = $sectionsStmt->fetchAll();
+} else {
+    $sections = $pdo->query("SELECT * FROM sections ORDER BY grade_level, section_name")->fetchAll();
+}
 
 // Section performance summary
 $sectionQuery = "SELECT sec.id, sec.section_name, sec.grade_level, sec.strand,
@@ -16,8 +26,21 @@ $sectionQuery = "SELECT sec.id, sec.section_name, sec.grade_level, sec.strand,
     LEFT JOIN students s ON s.section_id = sec.id AND s.status = 'active'
     LEFT JOIN grades g ON g.student_id = s.id";
 $sectionParams = [];
+$whereAdded = false;
+
+// Teachers only see their own students' data
+if ($userRole === 'teacher') {
+    $sectionQuery .= " WHERE s.created_by = ? OR s.created_by IS NULL";
+    $sectionParams[] = $currentUserId;
+    $whereAdded = true;
+}
+
 if ($sectionFilter) {
-    $sectionQuery .= " WHERE sec.id = ?";
+    if ($whereAdded) {
+        $sectionQuery .= " AND sec.id = ?";
+    } else {
+        $sectionQuery .= " WHERE sec.id = ?";
+    }
     $sectionParams[] = $sectionFilter;
 }
 $sectionQuery .= " GROUP BY sec.id ORDER BY sec.grade_level, sec.section_name";
@@ -37,6 +60,13 @@ $subQuery = "SELECT sub.id as subject_id, sub.subject_name, sub.subject_code,
     JOIN students s ON g.student_id = s.id
     WHERE s.status = 'active'";
 $subParams = [];
+
+// Teachers only see their own students' data
+if ($userRole === 'teacher') {
+    $subQuery .= " AND s.created_by = ?";
+    $subParams[] = $currentUserId;
+}
+
 if ($sectionFilter) {
     $subQuery .= " AND s.section_id = ?";
     $subParams[] = $sectionFilter;
@@ -50,6 +80,13 @@ $subjectPerformance = $subPerf->fetchAll();
 $quarterQuery = "SELECT g.quarter, AVG(g.grade) as avg_grade, COUNT(DISTINCT g.student_id) as students
     FROM grades g JOIN students s ON g.student_id = s.id WHERE s.status = 'active'";
 $quarterParams = [];
+
+// Teachers only see their own students' data
+if ($userRole === 'teacher') {
+    $quarterQuery .= " AND s.created_by = ?";
+    $quarterParams[] = $currentUserId;
+}
+
 if ($sectionFilter) {
     $quarterQuery .= " AND s.section_id = ?";
     $quarterParams[] = $sectionFilter;

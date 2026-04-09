@@ -4,16 +4,28 @@ require_once __DIR__ . '/../includes/header.php';
 requireRole(['teacher', 'guidance']);
 
 $id = $_GET['id'] ?? 0;
-$stmt = $pdo->prepare("SELECT wi.*, s.first_name, s.last_name, s.lrn, sec.section_name, sec.grade_level
+$currentUserId = $_SESSION['user_id'] ?? 0;
+$userRole = $_SESSION['role'] ?? '';
+
+$recordSql = "SELECT wi.*, s.first_name, s.last_name, s.lrn, sec.section_name, sec.grade_level, s.created_by
     FROM work_immersion wi
     JOIN students s ON wi.student_id = s.id
     LEFT JOIN sections sec ON s.section_id = sec.id
-    WHERE wi.id = ?");
-$stmt->execute([$id]);
+    WHERE wi.id = ?";
+$recordParams = [$id];
+
+$stmt = $pdo->prepare($recordSql);
+$stmt->execute($recordParams);
 $record = $stmt->fetch();
 
 if (!$record) {
     header('Location: ' . BASE_URL . 'work_immersion/index.php');
+    exit;
+}
+
+// Enforce ownership for teachers
+if ($userRole === 'teacher' && $record['created_by'] != $currentUserId) {
+    header('Location: ' . BASE_URL . 'work_immersion/index.php?error=unauthorized');
     exit;
 }
 

@@ -108,8 +108,18 @@ if (!$isGuidance && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['actio
 
 // Handle Delete
 if (!$isGuidance && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_id'])) {
-    $delStmt = $pdo->prepare("UPDATE students SET status = 'inactive' WHERE id = ?");
-    $delStmt->execute([$_POST['delete_id']]);
+    $deleteId = $_POST['delete_id'];
+    $currentUserId = $_SESSION['user_id'] ?? 0;
+    $userRole = $_SESSION['role'] ?? '';
+    
+    // Teachers can only delete students they created
+    if ($userRole === 'teacher') {
+        $delStmt = $pdo->prepare("UPDATE students SET status = 'inactive' WHERE id = ? AND created_by = ?");
+        $delStmt->execute([$deleteId, $currentUserId]);
+    } else {
+        $delStmt = $pdo->prepare("UPDATE students SET status = 'inactive' WHERE id = ?");
+        $delStmt->execute([$deleteId]);
+    }
     header('Location: ' . BASE_URL . 'students/index.php?msg=deleted');
     exit;
 }
@@ -127,18 +137,6 @@ $statusFilter = $_GET['status'] ?? '';
 $currentUserId = $_SESSION['user_id'] ?? 0;
 $userRole = $_SESSION['role'] ?? '';
 
-// For teachers: get their assigned sections
-$teacherSectionIds = [];
-if ($userRole === 'teacher') {
-    try {
-        $teacherSectionsStmt = $pdo->prepare("SELECT section_id FROM teacher_sections WHERE teacher_id = ? AND school_year = ?");
-        $teacherSectionsStmt->execute([$currentUserId, effectiveSchoolYear()]);
-        $teacherSectionIds = $teacherSectionsStmt->fetchAll(PDO::FETCH_COLUMN);
-    } catch (PDOException $e) {
-        // Table may not exist yet, ignore
-    }
-}
-
 // Query students list with average grade
 $query = "SELECT s.*, sec.section_name, sec.grade_level, st.strand_code, st.strand_name,
           (SELECT AVG(g.grade) FROM grades g WHERE g.student_id = s.id) as avg_grade,
@@ -150,28 +148,10 @@ $query = "SELECT s.*, sec.section_name, sec.grade_level, st.strand_code, st.stra
           WHERE s.status = 'active'";
 $params = [];
 
-// For teachers: filter by students they created OR their assigned sections
+// For teachers: only show students they personally created
 if ($userRole === 'teacher') {
-    // First get their assigned sections
-    try {
-        $teacherSectionsStmt = $pdo->prepare("SELECT section_id FROM teacher_sections WHERE teacher_id = ? AND school_year = ?");
-        $teacherSectionsStmt->execute([$currentUserId, effectiveSchoolYear()]);
-        $teacherSectionIds = $teacherSectionsStmt->fetchAll(PDO::FETCH_COLUMN);
-    } catch (PDOException $e) {
-        // Table may not exist yet, ignore
-    }
-    
-    // Filter: show students created by this teacher OR in their assigned sections
-    if (!empty($teacherSectionIds)) {
-        $placeholders = implode(',', array_fill(0, count($teacherSectionIds), '?'));
-        $query .= " AND (s.created_by = ? OR s.section_id IN ($placeholders))";
-        $params = array_merge($params, [$currentUserId]);
-        $params = array_merge($params, $teacherSectionIds);
-    } else {
-        // No assigned sections - only show students they created
-        $query .= " AND s.created_by = ?";
-        $params[] = $currentUserId;
-    }
+    $query .= " AND s.created_by = ?";
+    $params[] = $currentUserId;
 }
 
 if ($search) {
@@ -272,18 +252,6 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 <?php endif; ?>
 
-<?php if ($userRole === 'teacher' && empty($teacherSectionIds)): ?>
-<div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
-    <div class="flex items-start gap-3">
-        <i class="fas fa-exclamation-triangle text-amber-600 mt-0.5"></i>
-        <div>
-            <p class="text-sm font-medium text-amber-800">No Section Assignments</p>
-            <p class="text-xs text-amber-700 mt-1">You currently have no sections assigned. Please contact the administrator to be assigned to a section.</p>
-        </div>
-    </div>
-</div>
-<?php endif; ?>
-
 <!-- Filters -->
 <div class="bg-white border border-gray-200 rounded-xl p-5 mb-6">
     <form method="GET" class="flex flex-wrap items-end gap-4">
@@ -295,13 +263,7 @@ document.addEventListener('DOMContentLoaded', function() {
             <label class="form-label">Section</label>
             <select name="section" class="form-select">
                 <option value="">All Sections</option>
-                <?php 
-                // For teachers, only show their assigned sections
-                $displaySections = ($userRole === 'teacher' && !empty($teacherSectionIds)) 
-                    ? array_filter($sections, fn($sec) => in_array($sec['id'], $teacherSectionIds))
-                    : $sections;
-                foreach ($displaySections as $sec): 
-                ?>
+                <?php foreach ($sections as $sec): ?>
                     <option value="<?= $sec['id'] ?>" <?= $sectionFilter == $sec['id'] ? 'selected' : '' ?>><?= sanitize($sec['section_name']) ?></option>
                 <?php endforeach; ?>
             </select>
@@ -460,6 +422,7 @@ $filterBase = array_filter(['search' => $search, 'section' => $sectionFilter, 's
                         <td><?= sanitize($s['section_name'] ?? 'N/A') ?></td>
                         <td><?= $s['grade_level'] ?? 'N/A' ?></td>
                         <td><span class="badge badge-blue"><?= sanitize($s['strand_code'] ?? 'N/A') ?></span></td>
+                        <td class="text-xs text-gray-500"><?= sanitize($s['created_by_name'] ?? 'Unknown') ?></td>
                         <?php if (!$isGuidance): ?>
                         <td class="font-semibold"><?= $s['avg_grade'] !== null ? formatNumber($s['avg_grade']) : '<span class="text-gray-300">—</span>' ?></td>
                         <td>
@@ -472,7 +435,6 @@ $filterBase = array_filter(['search' => $search, 'section' => $sectionFilter, 's
                             <?php endif; ?>
                         </td>
                         <?php endif; ?>
-                        <td class="text-xs text-gray-500"><?= sanitize($s['created_by_name'] ?? 'Unknown') ?></td>
                         <td>
                             <div class="flex items-center gap-2">
                                 <a href="<?= BASE_URL ?>students/view.php?id=<?= $s['id'] ?>" class="text-blue-600 hover:text-blue-800" title="View"><i class="fas fa-eye"></i></a>
@@ -488,7 +450,17 @@ $filterBase = array_filter(['search' => $search, 'section' => $sectionFilter, 's
                     </tr>
                 <?php endforeach; ?>
                 <?php if (empty($students)): ?>
-                    <tr><td colspan="<?= $isGuidance ? 8 : 10 ?>" class="text-center text-gray-400 py-8">No students found.</td></tr>
+                    <tr><td colspan="<?= $isGuidance ? 8 : 10 ?>" class="text-center py-8">
+                        <?php if ($userRole === 'teacher'): ?>
+                            <div class="text-gray-500">
+                                <i class="fas fa-users text-4xl mb-3 text-gray-300"></i>
+                                <p class="font-medium">No students found.</p>
+                                <p class="text-sm mt-1">Start by adding a new student using the button above.</p>
+                            </div>
+                        <?php else: ?>
+                            <span class="text-gray-400">No students found.</span>
+                        <?php endif; ?>
+                    </td></tr>
                 <?php endif; ?>
             </tbody>
         </table>

@@ -3,16 +3,41 @@ $pageTitle = 'Diagnostic Reports';
 require_once __DIR__ . '/../includes/header.php';
 requireRole(['teacher', 'guidance']);
 
-$sections = $pdo->query("SELECT * FROM sections ORDER BY grade_level, section_name")->fetchAll();
+$currentUserId = $_SESSION['user_id'] ?? 0;
+$userRole = $_SESSION['role'] ?? '';
 
-$recentReports = $pdo->query("SELECT dr.*, u.full_name as generated_by_name,
-    CONCAT(s.first_name, ' ', s.last_name) as student_name,
-    sec.section_name
-    FROM diagnostic_reports dr
-    LEFT JOIN users u ON dr.generated_by = u.id
-    LEFT JOIN students s ON dr.student_id = s.id
-    LEFT JOIN sections sec ON dr.section_id = sec.id
-    ORDER BY dr.created_at DESC LIMIT 20")->fetchAll();
+// Teachers only see sections where they are the adviser
+if ($userRole === 'teacher') {
+    $sectionsStmt = $pdo->prepare("SELECT * FROM sections WHERE adviser_id = ? ORDER BY grade_level, section_name");
+    $sectionsStmt->execute([$currentUserId]);
+    $sections = $sectionsStmt->fetchAll();
+} else {
+    $sections = $pdo->query("SELECT * FROM sections ORDER BY grade_level, section_name")->fetchAll();
+}
+
+// Recent reports - teachers only see reports for students they created
+if ($userRole === 'teacher') {
+    $recentReportsStmt = $pdo->prepare("SELECT dr.*, u.full_name as generated_by_name,
+        CONCAT(s.first_name, ' ', s.last_name) as student_name,
+        sec.section_name
+        FROM diagnostic_reports dr
+        LEFT JOIN users u ON dr.generated_by = u.id
+        LEFT JOIN students s ON dr.student_id = s.id
+        LEFT JOIN sections sec ON dr.section_id = sec.id
+        WHERE dr.generated_by = ? OR s.created_by = ?
+        ORDER BY dr.created_at DESC LIMIT 20");
+    $recentReportsStmt->execute([$currentUserId, $currentUserId]);
+    $recentReports = $recentReportsStmt->fetchAll();
+} else {
+    $recentReports = $pdo->query("SELECT dr.*, u.full_name as generated_by_name,
+        CONCAT(s.first_name, ' ', s.last_name) as student_name,
+        sec.section_name
+        FROM diagnostic_reports dr
+        LEFT JOIN users u ON dr.generated_by = u.id
+        LEFT JOIN students s ON dr.student_id = s.id
+        LEFT JOIN sections sec ON dr.section_id = sec.id
+        ORDER BY dr.created_at DESC LIMIT 20")->fetchAll();
+}
 
 require_once __DIR__ . '/../includes/sidebar.php';
 ?>

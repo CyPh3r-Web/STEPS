@@ -8,6 +8,9 @@ $levelFilter = $_GET['level'] ?? '';
 
 $sections = $pdo->query("SELECT * FROM sections ORDER BY grade_level, section_name")->fetchAll();
 
+$currentUserId = $_SESSION['user_id'] ?? 0;
+$userRole = $_SESSION['role'] ?? '';
+
 $query = "SELECT s.id, s.first_name, s.last_name, s.lrn,
           sec.section_name, sec.grade_level,
           st.strand_code,
@@ -18,6 +21,12 @@ $query = "SELECT s.id, s.first_name, s.last_name, s.lrn,
           LEFT JOIN strands st ON s.strand_id = st.id
           WHERE s.status = 'active'";
 $params = [];
+
+// Teachers only see students they created
+if ($userRole === 'teacher') {
+    $query .= " AND s.created_by = ?";
+    $params[] = $currentUserId;
+}
 
 if ($sectionFilter) {
     $query .= " AND s.section_id = ?";
@@ -41,15 +50,24 @@ $atRiskCount = count(array_filter($students, fn($s) => getCompetencyLevel($s['av
 $profCount = count(array_filter($students, fn($s) => getCompetencyLevel($s['avg_grade'])['level'] === 'proficient'));
 
 // Subject-level weak competency identification
-$subjectCompetency = $pdo->query("SELECT sub.subject_name, sub.subject_code, AVG(g.grade) as avg_grade, COUNT(DISTINCT g.student_id) as student_count
+$subjectCompQuery = "SELECT sub.subject_name, sub.subject_code, AVG(g.grade) as avg_grade, COUNT(DISTINCT g.student_id) as student_count
     FROM grades g
     JOIN subjects sub ON g.subject_id = sub.id
     JOIN students s ON g.student_id = s.id
-    WHERE s.status = 'active'
-    GROUP BY sub.id ORDER BY avg_grade ASC")->fetchAll();
+    WHERE s.status = 'active'";
+$subjectCompParams = [];
+
+if ($userRole === 'teacher') {
+    $subjectCompQuery .= " AND s.created_by = ?";
+    $subjectCompParams[] = $currentUserId;
+}
+$subjectCompQuery .= " GROUP BY sub.id ORDER BY avg_grade ASC";
+$subjectCompStmt = $pdo->prepare($subjectCompQuery);
+$subjectCompStmt->execute($subjectCompParams);
+$subjectCompetency = $subjectCompStmt->fetchAll();
 
 // Strand Top Performers — top 3 per section by specialized subject average (G11 & G12)
-$topPerformers = $pdo->query("SELECT ranked.* FROM (
+$topPerfQuery = "SELECT ranked.* FROM (
     SELECT
         s.id as student_id,
         CONCAT(s.first_name, ' ', s.last_name) as student_name,
@@ -67,12 +85,22 @@ $topPerformers = $pdo->query("SELECT ranked.* FROM (
     JOIN subjects sub ON g.subject_id = sub.id
     WHERE s.status = 'active'
       AND sub.subject_type = 'specialized'
-      AND sub.strand_id = s.strand_id
+      AND sub.strand_id = s.strand_id";
+$topPerfParams = [];
+
+if ($userRole === 'teacher') {
+    $topPerfQuery .= " AND s.created_by = ?";
+    $topPerfParams[] = $currentUserId;
+}
+$topPerfQuery .= "
     GROUP BY s.id, s.section_id
     HAVING AVG(g.grade) >= 80
 ) ranked
 WHERE ranked.section_rank <= 3
-ORDER BY ranked.strand_code, ranked.section_rank ASC")->fetchAll();
+ORDER BY ranked.strand_code, ranked.section_rank ASC";
+$topPerfStmt = $pdo->prepare($topPerfQuery);
+$topPerfStmt->execute($topPerfParams);
+$topPerformers = $topPerfStmt->fetchAll();
 
 require_once __DIR__ . '/../includes/sidebar.php';
 ?>

@@ -7,14 +7,19 @@ $strandGradeRaw = $_GET['strand_grade'] ?? '';
 $sectionIdFilter = $_GET['section_id'] ?? '';
 $studentId = $_GET['student_id'] ?? '';
 
+$currentUserId = $_SESSION['user_id'] ?? 0;
+$userRole = $_SESSION['role'] ?? '';
+
 // Strand/grade options: only combinations that have sections with active students
-$strandGradeOptions = $pdo->query("
-    SELECT DISTINCT sec.grade_level, sec.strand
+$strandGradeSql = "SELECT DISTINCT sec.grade_level, sec.strand
     FROM sections sec
     INNER JOIN students s ON s.section_id = sec.id AND s.status = 'active' AND s.school_year = " . $pdo->quote(effectiveSchoolYear()) . "
-    WHERE sec.school_year = " . $pdo->quote(effectiveSchoolYear()) . "
-    ORDER BY sec.grade_level, COALESCE(sec.strand, '')
-")->fetchAll();
+    WHERE sec.school_year = " . $pdo->quote(effectiveSchoolYear());
+if ($userRole === 'teacher') {
+    $strandGradeSql .= " AND s.created_by = " . (int)$currentUserId;
+}
+$strandGradeSql .= " ORDER BY sec.grade_level, COALESCE(sec.strand, '')";
+$strandGradeOptions = $pdo->query($strandGradeSql)->fetchAll();
 
 $sectionsFiltered = [];
 $studentsFiltered = [];
@@ -36,6 +41,11 @@ if ($strandGradeRaw !== '') {
         $secSql .= " AND sec.strand = ?";
         $secParams[] = $strandFilter;
     }
+    // Teachers only see sections where they are the adviser
+    if ($userRole === 'teacher') {
+        $secSql .= " AND sec.adviser_id = ?";
+        $secParams[] = $currentUserId;
+    }
     $secSql .= " GROUP BY sec.id ORDER BY sec.section_name";
     $stmtSec = $pdo->prepare($secSql);
     $stmtSec->execute($secParams);
@@ -44,8 +54,15 @@ if ($strandGradeRaw !== '') {
 
 $sectionIdsFiltered = array_column($sectionsFiltered, 'id');
 if ($sectionIdFilter !== '' && in_array((int)$sectionIdFilter, array_map('intval', $sectionIdsFiltered))) {
-    $stmtSt = $pdo->prepare("SELECT s.id, s.first_name, s.last_name, s.lrn FROM students s WHERE s.section_id = ? AND s.status = 'active' ORDER BY s.last_name, s.first_name");
-    $stmtSt->execute([$sectionIdFilter]);
+    $studentsSql = "SELECT s.id, s.first_name, s.last_name, s.lrn FROM students s WHERE s.section_id = ? AND s.status = 'active'";
+    $studentsParams = [$sectionIdFilter];
+    if ($userRole === 'teacher') {
+        $studentsSql .= " AND s.created_by = ?";
+        $studentsParams[] = $currentUserId;
+    }
+    $studentsSql .= " ORDER BY s.last_name, s.first_name";
+    $stmtSt = $pdo->prepare($studentsSql);
+    $stmtSt->execute($studentsParams);
     $studentsFiltered = $stmtSt->fetchAll();
 }
 
@@ -72,6 +89,11 @@ if ($studentId && ($strandGradeRaw === '' || $sectionIdFilter === '')) {
                     $secSql .= " AND sec.strand = ?";
                     $secParams[] = $strandFilter;
                 }
+                // Teachers only see sections where they are the adviser
+                if ($userRole === 'teacher') {
+                    $secSql .= " AND sec.adviser_id = ?";
+                    $secParams[] = $currentUserId;
+                }
                 $secSql .= " GROUP BY sec.id ORDER BY sec.section_name";
                 $stmtSec = $pdo->prepare($secSql);
                 $stmtSec->execute($secParams);
@@ -91,11 +113,20 @@ $grades = [];
 $careerRec = null;
 
 if ($studentId) {
-    $stmt = $pdo->prepare("SELECT s.*, sec.section_name, sec.grade_level, st.strand_code, st.strand_name
+    $studentSql = "SELECT s.*, sec.section_name, sec.grade_level, st.strand_code, st.strand_name
         FROM students s
         LEFT JOIN sections sec ON s.section_id = sec.id
-        LEFT JOIN strands st ON s.strand_id = st.id WHERE s.id = ?");
-    $stmt->execute([$studentId]);
+        LEFT JOIN strands st ON s.strand_id = st.id WHERE s.id = ?";
+    $studentParams = [$studentId];
+    
+    // Teachers can only view students they created
+    if ($userRole === 'teacher') {
+        $studentSql .= " AND s.created_by = ?";
+        $studentParams[] = $currentUserId;
+    }
+    
+    $stmt = $pdo->prepare($studentSql);
+    $stmt->execute($studentParams);
     $student = $stmt->fetch();
 
     if ($student) {

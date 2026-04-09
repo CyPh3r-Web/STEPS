@@ -4,12 +4,22 @@ require_once __DIR__ . '/../includes/header.php';
 requireRole('teacher');
 
 $id = $_GET['id'] ?? 0;
+$currentUserId = $_SESSION['user_id'] ?? 0;
+$userRole = $_SESSION['role'] ?? '';
+
+// Teachers can only edit students they created
 $stmt = $pdo->prepare("SELECT * FROM students WHERE id = ?");
 $stmt->execute([$id]);
 $student = $stmt->fetch();
 
 if (!$student) {
     header('Location: ' . BASE_URL . 'students/index.php');
+    exit;
+}
+
+// Enforce ownership for teachers
+if ($userRole === 'teacher' && $student['created_by'] != $currentUserId) {
+    header('Location: ' . BASE_URL . 'students/index.php?error=unauthorized');
     exit;
 }
 
@@ -41,8 +51,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($check->fetch()) {
             $error = 'A different student with this LRN already exists.';
         } else {
-            $stmt = $pdo->prepare("UPDATE students SET lrn=?, first_name=?, last_name=?, middle_name=?, name_suffix=?, gender=?, birthdate=?, section_id=?, strand_id=?, school_year=? WHERE id=?");
-            $stmt->execute([$lrn, $firstName, $lastName, $middleName, $nameSuffix, $gender, $birthdate ?: null, $sectionId, $strandId, $schoolYear, $id]);
+            // Teachers can only update their own students
+            if ($userRole === 'teacher') {
+                $stmt = $pdo->prepare("UPDATE students SET lrn=?, first_name=?, last_name=?, middle_name=?, name_suffix=?, gender=?, birthdate=?, section_id=?, strand_id=?, school_year=? WHERE id=? AND created_by=?");
+                $stmt->execute([$lrn, $firstName, $lastName, $middleName, $nameSuffix, $gender, $birthdate ?: null, $sectionId, $strandId, $schoolYear, $id, $currentUserId]);
+            } else {
+                $stmt = $pdo->prepare("UPDATE students SET lrn=?, first_name=?, last_name=?, middle_name=?, name_suffix=?, gender=?, birthdate=?, section_id=?, strand_id=?, school_year=? WHERE id=?");
+                $stmt->execute([$lrn, $firstName, $lastName, $middleName, $nameSuffix, $gender, $birthdate ?: null, $sectionId, $strandId, $schoolYear, $id]);
+            }
             header('Location: ' . BASE_URL . 'students/index.php?msg=updated');
             exit;
         }

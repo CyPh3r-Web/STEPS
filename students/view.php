@@ -4,6 +4,7 @@ require_once __DIR__ . '/../includes/header.php';
 requireRole(['teacher', 'guidance']);
 
 $role = $_SESSION['role'] ?? '';
+$currentUserId = $_SESSION['user_id'] ?? 0;
 
 $id = $_GET['id'] ?? 0;
 $stmt = $pdo->prepare("SELECT s.*, sec.section_name, sec.grade_level, st.strand_code, st.strand_name
@@ -16,6 +17,12 @@ $student = $stmt->fetch();
 
 if (!$student) {
     header('Location: ' . BASE_URL . 'students/index.php');
+    exit;
+}
+
+// Enforce ownership for teachers
+if ($role === 'teacher' && $student['created_by'] != $currentUserId) {
+    header('Location: ' . BASE_URL . 'students/index.php?error=unauthorized');
     exit;
 }
 

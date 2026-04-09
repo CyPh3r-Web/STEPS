@@ -649,12 +649,14 @@ CREATE TABLE IF NOT EXISTS `students` (
   `strand_id` int DEFAULT NULL,
   `school_year` varchar(20) NOT NULL,
   `status` enum('active','inactive','graduated') NOT NULL DEFAULT 'active',
+  `created_by` int DEFAULT NULL COMMENT 'User ID who created this student record',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `lrn` (`lrn`),
   KEY `section_id` (`section_id`),
-  KEY `strand_id` (`strand_id`)
+  KEY `strand_id` (`strand_id`),
+  KEY `created_by` (`created_by`)
 ) ENGINE=InnoDB AUTO_INCREMENT=14 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 --

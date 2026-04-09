@@ -1,5 +1,11 @@
 <?php
-session_start();
+// Ensure session is properly configured for hosting environment
+if (session_status() === PHP_SESSION_NONE) {
+    ini_set('session.cookie_httponly', 1);
+    ini_set('session.cookie_secure', isset($_SERVER['HTTPS']));
+    ini_set('session.use_strict_mode', 1);
+    session_start();
+}
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/constants.php';
 requireRole('teacher');
@@ -66,8 +72,10 @@ $skipped = 0;
 $errors = [];
 $rowNum = 1;
 
-$insertStmt = $pdo->prepare("INSERT INTO students (lrn, first_name, last_name, middle_name, name_suffix, gender, birthdate, section_id, strand_id, school_year) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+$insertStmt = $pdo->prepare("INSERT INTO students (lrn, first_name, last_name, middle_name, name_suffix, gender, birthdate, section_id, strand_id, school_year, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
 $checkStmt = $pdo->prepare("SELECT id FROM students WHERE lrn = ?");
+
+$currentUserId = $_SESSION['user_id'] ?? null;
 
 while (($row = fgetcsv($handle)) !== false) {
     $rowNum++;
@@ -177,7 +185,8 @@ while (($row = fgetcsv($handle)) !== false) {
             $birthdateFormatted,
             $sectionId,
             $strandId,
-            sanitize($schoolYear)
+            sanitize($schoolYear),
+            $currentUserId
         ]);
         $inserted++;
     } catch (PDOException $e) {
