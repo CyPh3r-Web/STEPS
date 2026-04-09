@@ -74,6 +74,14 @@ function sidebarLinkClass($active) {
            class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors <?= sidebarLinkClass($currentDir === 'users') ?>" title="User Management">
             <i class="fas fa-users-cog w-5 flex-shrink-0 text-center"></i><span class="sidebar-link-text">User Management</span>
         </a>
+        <a href="<?= BASE_URL ?>subjects/index.php"
+           class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors <?= sidebarLinkClass($currentDir === 'subjects') ?>" title="Subjects">
+            <i class="fas fa-book w-5 flex-shrink-0 text-center"></i><span class="sidebar-link-text">Subjects</span>
+        </a>
+        <a href="<?= BASE_URL ?>sections/index.php"
+           class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors <?= sidebarLinkClass($currentDir === 'sections') ?>" title="Sections">
+            <i class="fas fa-layer-group w-5 flex-shrink-0 text-center"></i><span class="sidebar-link-text">Sections</span>
+        </a>
         <a href="<?= BASE_URL ?>admin/activity_logs.php"
            class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors <?= sidebarLinkClass($currentDir === 'admin' && in_array($currentPage ?? '', ['activity_logs', 'system_reports'])) ?>" title="Activity Logs & Reports">
             <i class="fas fa-list w-5 flex-shrink-0 text-center"></i><span class="sidebar-link-text">Activity Logs &amp; Reports</span>

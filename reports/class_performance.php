@@ -69,7 +69,7 @@ require_once __DIR__ . '/../includes/sidebar.php';
 ?>
 
 <!-- Filters -->
-<div class="flex flex-wrap items-center justify-between gap-4 mb-6">
+<div class="flex flex-wrap items-center justify-between gap-4 mb-6 no-print">
     <form method="GET" class="flex items-center gap-3">
         <label class="text-sm font-medium text-gray-600">Filter by Section:</label>
         <select name="section" class="form-select w-48" onchange="this.form.submit()">

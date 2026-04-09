@@ -18,7 +18,7 @@ require_once __DIR__ . '/../includes/sidebar.php';
 ?>
 
 <!-- Report Types -->
-<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-8 no-print">
     <a href="<?= BASE_URL ?>reports/individual.php" class="stat-card hover:border-gray-300 cursor-pointer group" style="background:#eff6ff;">
         <div class="w-12 h-12 rounded-lg flex items-center justify-center mb-3 transition-colors" style="background:#dbeafe;">
             <i class="fas fa-user text-lg" style="color:#1d4ed8;"></i>
@@ -55,7 +55,7 @@ require_once __DIR__ . '/../includes/sidebar.php';
 </div>
 
 <!-- Recent Reports -->
-<div class="bg-white border border-gray-200 rounded-xl overflow-hidden">
+<div class="bg-white border border-gray-200 rounded-xl overflow-hidden no-print">
     <div class="px-6 py-4 border-b border-gray-200">
         <h3 class="text-sm font-semibold text-gray-900">Recent Reports</h3>
     </div>

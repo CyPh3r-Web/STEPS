@@ -129,12 +129,12 @@ if ($studentId) {
 require_once __DIR__ . '/../includes/sidebar.php';
 ?>
 
-<a href="<?= BASE_URL ?>reports/index.php" class="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 mb-6">
+<a href="<?= BASE_URL ?>reports/index.php" class="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 mb-6 no-print">
     <i class="fas fa-arrow-left"></i> Back to Reports
 </a>
 
 <!-- Filters: Strand/Grade → Section → Student (auto-fetch on select) -->
-<div class="bg-white border border-gray-200 rounded-xl p-5 mb-6">
+<div class="bg-white border border-gray-200 rounded-xl p-5 mb-6 no-print">
     <form method="GET" id="reportFilterForm" class="space-y-4">
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>

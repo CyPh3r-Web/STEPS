@@ -1,41 +1,101 @@
 <?php
-$pageTitle = 'Support Tickets';
-require_once __DIR__ . '/../includes/header.php';
-requireAdmin();
+// Start session and load config BEFORE any output (required for header redirects)
+if (session_status() === PHP_SESSION_NONE) session_start();
+require_once __DIR__ . '/../config/constants.php';
+require_once __DIR__ . '/../config/database.php';
+
+// Check admin access early
+if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'admin') {
+    header('Location: ' . BASE_URL . 'dashboard/index.php');
+    exit;
+}
 
 $success = '';
+$error = '';
+
+// Handle POST with PRG pattern (Post-Redirect-Get) to prevent white page issues
+// MUST be done BEFORE any HTML output
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'reply') {
     $id = (int)($_POST['ticket_id'] ?? 0);
-    $status = sanitize($_POST['status'] ?? 'open');
+    $status = htmlspecialchars(strip_tags(trim($_POST['status'] ?? 'open')), ENT_QUOTES, 'UTF-8');
     $reply = trim($_POST['admin_reply'] ?? '');
     if (!in_array($status, ['open', 'in_progress', 'resolved'], true)) {
         $status = 'open';
     }
     if ($id > 0) {
-        // Get previous status to check if transitioning to resolved
-        $prevStmt = $pdo->prepare('SELECT status, user_id FROM support_tickets WHERE id = ?');
-        $prevStmt->execute([$id]);
-        $prevData = $prevStmt->fetch();
-        
-        $u = $pdo->prepare('UPDATE support_tickets SET status = ?, admin_reply = ?, replied_by = ?, updated_at = NOW() WHERE id = ?');
-        $u->execute([$status, $reply !== '' ? $reply : null, $_SESSION['user_id'], $id]);
-        
-        // Create notification if ticket is now resolved
-        if ($prevData && $prevData['status'] !== 'resolved' && $status === 'resolved') {
-            $notifyStmt = $pdo->prepare("INSERT INTO notifications (user_id, title, message, type, related_id, related_type) VALUES (?, ?, ?, 'success', ?, 'support_ticket')");
-            $notifyStmt->execute([
-                $prevData['user_id'],
-                'Support Ticket Resolved',
-                'Your support ticket #' . $id . ' has been marked as resolved. Admin reply: ' . ($reply ?: 'No additional comments.'),
-                $id
-            ]);
+        try {
+            // Get previous status and subject to check if transitioning
+            $prevStmt = $pdo->prepare('SELECT status, user_id, subject FROM support_tickets WHERE id = ?');
+            $prevStmt->execute([$id]);
+            $prevData = $prevStmt->fetch();
+            
+            $u = $pdo->prepare('UPDATE support_tickets SET status = ?, admin_reply = ?, replied_by = ?, updated_at = NOW() WHERE id = ?');
+            $u->execute([$status, $reply !== '' ? $reply : null, $_SESSION['user_id'], $id]);
+            
+            // Create notification for status changes
+            if ($prevData && $prevData['status'] !== $status) {
+                $notifTitle = '';
+                $notifMessage = '';
+                $notifType = 'info';
+                
+                $ticketSubject = $prevData['subject'] ?? 'your support ticket';
+                if ($status === 'resolved') {
+                    $notifTitle = 'Support Ticket Resolved';
+                    $notifMessage = 'Your support ticket "' . $ticketSubject . '" has been marked as resolved.';
+                    if ($reply) {
+                        $notifMessage .= ' Admin reply: ' . $reply;
+                    }
+                    $notifType = 'success';
+                } elseif ($status === 'in_progress') {
+                    $notifTitle = 'Support Ticket In Progress';
+                    $notifMessage = 'Your support ticket "' . $ticketSubject . '" is now being reviewed by an administrator.';
+                    $notifType = 'info';
+                }
+                
+                if ($notifTitle) {
+                    try {
+                        $notifyStmt = $pdo->prepare("INSERT INTO notifications (user_id, title, message, type, related_id, related_type) VALUES (?, ?, ?, ?, ?, 'support_ticket')");
+                        $notifyStmt->execute([
+                            $prevData['user_id'],
+                            $notifTitle,
+                            $notifMessage,
+                            $notifType,
+                            $id
+                        ]);
+                    } catch (PDOException $notifE) {
+                        error_log('Notification insert failed: ' . $notifE->getMessage());
+                    }
+                }
+            }
+            
+            $logStmt = $pdo->prepare('INSERT INTO activity_logs (user_id, action, description, ip_address) VALUES (?, ?, ?, ?)');
+            $logStmt->execute([$_SESSION['user_id'], 'support_ticket_update', "Ticket #$id updated", $_SERVER['REMOTE_ADDR'] ?? '']);
+            
+            // Redirect to prevent form resubmission and white page
+            $_SESSION['support_success'] = 'Ticket updated successfully.';
+            header('Location: ' . BASE_URL . 'admin/support.php');
+            exit;
+        } catch (PDOException $e) {
+            $_SESSION['support_error'] = 'Failed to update ticket: ' . $e->getMessage();
+            header('Location: ' . BASE_URL . 'admin/support.php');
+            exit;
         }
-        
-        $logStmt = $pdo->prepare('INSERT INTO activity_logs (user_id, action, description, ip_address) VALUES (?, ?, ?, ?)');
-        $logStmt->execute([$_SESSION['user_id'], 'support_ticket_update', "Ticket #$id updated", $_SERVER['REMOTE_ADDR'] ?? '']);
-        $success = 'Ticket updated.';
     }
 }
+
+// Check for success/error messages from redirect
+if (isset($_SESSION['support_success'])) {
+    $success = $_SESSION['support_success'];
+    unset($_SESSION['support_success']);
+}
+if (isset($_SESSION['support_error'])) {
+    $error = $_SESSION['support_error'];
+    unset($_SESSION['support_error']);
+}
+
+// Now load header (which outputs HTML)
+$pageTitle = 'Support Tickets';
+require_once __DIR__ . '/../includes/header.php';
 
 $tickets = [];
 try {
@@ -49,6 +109,9 @@ require_once __DIR__ . '/../includes/sidebar.php';
 
 <?php if ($success): ?>
 <script>document.addEventListener('DOMContentLoaded', function() { Toast.fire({ icon: 'success', title: <?= json_encode($success) ?> }); });</script>
+<?php endif; ?>
+<?php if ($error): ?>
+<script>document.addEventListener('DOMContentLoaded', function() { Swal.fire({ icon: 'error', title: 'Error', text: <?= json_encode($error) ?> }); });</script>
 <?php endif; ?>
 
 <div class="space-y-6">
@@ -85,9 +148,12 @@ require_once __DIR__ . '/../includes/sidebar.php';
                     <textarea name="admin_reply" class="form-input" rows="3" placeholder="Optional message for your records" <?= $t['status'] === 'resolved' ? 'disabled' : '' ?>><?= sanitize($t['admin_reply'] ?? '') ?></textarea>
                 </div>
                 <?php if ($t['status'] === 'resolved'): ?>
-                    <div class="flex items-center gap-2 text-sm text-gray-500 py-2">
-                        <i class="fas fa-check-circle text-green-500"></i>
-                        <span>This ticket is resolved and locked.</span>
+                    <div class="flex items-center justify-between gap-2 py-2">
+                        <div class="flex items-center gap-2 text-sm text-gray-500">
+                            <i class="fas fa-check-circle text-green-500"></i>
+                            <span>This ticket is resolved.</span>
+                        </div>
+                        <button type="submit" name="status" value="open" class="btn btn-secondary btn-sm" onclick="this.form.status.value='open'; this.form.submit();"><i class="fas fa-redo"></i> Re-open</button>
                     </div>
                 <?php else: ?>
                     <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-save"></i> Update ticket</button>

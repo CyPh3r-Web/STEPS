@@ -1,7 +1,10 @@
 <?php
 $pageTitle = 'Subjects';
 require_once __DIR__ . '/../includes/header.php';
-requireAdmin();
+requireRole(['teacher', 'admin']);
+
+$isAdmin = ($_SESSION['role'] ?? '') === 'admin';
+$currentUserId = $_SESSION['user_id'] ?? 0;
 
 $strands = $pdo->query("SELECT * FROM strands ORDER BY strand_name")->fetchAll();
 
@@ -87,7 +90,7 @@ if ($editId) {
     if ($editSubject && !$openModal) $openModal = 'edit';
 }
 
-// Fetch subjects
+// Fetch subjects - all subjects for both admins and teachers
 $query = "SELECT sub.*, st.strand_code, st.strand_name,
     (SELECT COUNT(*) FROM grades g WHERE g.subject_id = sub.id) as grade_count
     FROM subjects sub
@@ -100,6 +103,7 @@ $stmt = $pdo->prepare($query);
 $stmt->execute($params);
 $subjects = $stmt->fetchAll();
 
+// Stats for all subjects (both admins and teachers)
 $totalCore = $pdo->query("SELECT COUNT(*) as cnt FROM subjects WHERE subject_type='core'")->fetch()['cnt'];
 $totalSpecialized = $pdo->query("SELECT COUNT(*) as cnt FROM subjects WHERE subject_type='specialized'")->fetch()['cnt'];
 $totalApplied = $pdo->query("SELECT COUNT(*) as cnt FROM subjects WHERE subject_type='applied'")->fetch()['cnt'];

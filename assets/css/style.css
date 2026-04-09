@@ -681,41 +681,55 @@ body {
 
 /* Print */
 @media print {
+    @page {
+        margin: 1cm;
+        size: auto;
+    }
+    html, body {
+        height: auto !important;
+        overflow: visible !important;
+    }
     aside, header, footer, .no-print, .sidebar-aside, #sidebar-overlay,
     .modal-overlay, .btn, button, .theme-picker, .mode-toggle-btn,
     #expand-sidebar-btn, [onclick*="openModal"], [onclick*="toggle"],
     .flex.gap-2, .flex.items-center.gap-2, .stat-card:has(.fa-exclamation),
-    .stat-card:has(.fa-check-circle), form[onsubmit*="confirmDelete"] {
+    .stat-card:has(.fa-check-circle), form[onsubmit*="confirmDelete"],
+    input[type="search"], .table-search-bar, .search-input,
+    [placeholder*="search" i], [placeholder*="Search" i] {
         display: none !important;
     }
-    body, #main-wrapper, main { 
-        margin: 0 !important; 
-        padding: 0 !important; 
+    body, #main-wrapper, main {
+        margin: 0 !important;
+        padding: 0 !important;
         background: white !important;
     }
-    .stat-card { 
-        break-inside: avoid; 
+    .stat-card {
+        break-inside: avoid;
         page-break-inside: avoid;
         border: 1px solid #e2e8f0 !important;
         box-shadow: none !important;
     }
-    .steps-table { 
-        font-size: 12px !important; 
+    .steps-table {
+        font-size: 12px !important;
         border: 1px solid #e2e8f0 !important;
     }
     .steps-table th, .steps-table td {
         padding: 8px !important;
         border: 1px solid #e2e8f0 !important;
     }
-    h2, h3 { 
-        font-size: 16px !important; 
+    h2, h3 {
+        font-size: 16px !important;
         color: #000 !important;
     }
-    .badge { 
+    .badge {
         border: 1px solid currentColor !important;
         background: transparent !important;
     }
     a { text-decoration: none !important; color: inherit !important; }
+    /* Hide URL/Title that browsers print in headers/footers by using blank margin boxes */
+    @page :first {
+        margin-top: 0;
+    }
 }
 
 /* Online/Offline Indicator */

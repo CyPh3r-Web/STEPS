@@ -1,7 +1,7 @@
 <?php
 $pageTitle = 'Sections';
 require_once __DIR__ . '/../includes/header.php';
-requireRole('teacher');
+requireRole(['teacher', 'admin']);
 
 $isAdmin = ($_SESSION['role'] ?? '') === 'admin';
 $currentUserId = $_SESSION['user_id'] ?? 0;
@@ -56,7 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'edit'
         $ownerCheck = $pdo->prepare("SELECT adviser_id FROM sections WHERE id = ?");
         $ownerCheck->execute([$id]);
         $owner = $ownerCheck->fetch();
-        if (!$owner || $owner['adviser_id'] != $currentUserId) {
+        if (!$owner || (int)$owner['adviser_id'] !== $currentUserId) {
             $error = 'You can only edit sections that you are assigned to as adviser.';
             $editId = $id;
             $openModal = 'edit';
@@ -100,7 +100,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_id'])) {
         $ownerCheck = $pdo->prepare("SELECT adviser_id FROM sections WHERE id = ?");
         $ownerCheck->execute([$deleteId]);
         $owner = $ownerCheck->fetch();
-        if (!$owner || $owner['adviser_id'] != $currentUserId) {
+        if (!$owner || (int)$owner['adviser_id'] !== $currentUserId) {
             $error = 'You can only delete sections that you are assigned to as adviser.';
         }
     }
@@ -425,7 +425,8 @@ function loadEditSection(id) {
     document.getElementById('edit_sec_name').value = s.section_name;
     document.getElementById('edit_sec_grade').value = s.grade_level;
     document.getElementById('edit_sec_strand').value = s.strand;
-    document.getElementById('edit_sec_adviser').value = s.adviser_id;
+    const adviserEl = document.getElementById('edit_sec_adviser');
+    if (adviserEl) adviserEl.value = s.adviser_id;
     document.getElementById('edit_sec_sy').value = s.school_year;
     toggleStrandField('edit_sec_grade', 'edit_strand_wrap');
     openModal('editSectionModal');
