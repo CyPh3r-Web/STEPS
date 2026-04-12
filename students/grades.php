@@ -497,13 +497,15 @@ document.addEventListener('DOMContentLoaded', function() {
                     <tbody class="text-gray-600">
                         <tr class="border-b border-gray-100"><td class="py-1.5 pr-3 font-mono font-semibold">LRN</td><td class="pr-3"><span class="text-red-500">Yes</span></td><td>100100100001</td></tr>
                         <tr class="border-b border-gray-100"><td class="py-1.5 pr-3 font-mono font-semibold">Subject Code</td><td class="pr-3"><span class="text-red-500">Yes</span></td><td>CORE04, STEM01</td></tr>
-                        <tr class="border-b border-gray-100"><td class="py-1.5 pr-3 font-mono font-semibold">Quarter</td><td class="pr-3"><span class="text-red-500">Yes</span></td><td>Q1 / Q2 / Q3 / Q4</td></tr>
-                        <tr class="border-b border-gray-100"><td class="py-1.5 pr-3 font-mono font-semibold">Grade</td><td class="pr-3"><span class="text-red-500">Yes</span></td><td>85.50 (60–100)</td></tr>
+                        <tr class="border-b border-gray-100"><td class="py-1.5 pr-3 font-mono font-semibold">Q1</td><td class="pr-3"><span class="text-blue-500">Optional*</span></td><td>85.50 (60-100)</td></tr>
+                        <tr class="border-b border-gray-100"><td class="py-1.5 pr-3 font-mono font-semibold">Q2</td><td class="pr-3"><span class="text-blue-500">Optional*</span></td><td>90</td></tr>
+                        <tr class="border-b border-gray-100"><td class="py-1.5 pr-3 font-mono font-semibold">Q3</td><td class="pr-3"><span class="text-blue-500">Optional*</span></td><td>88</td></tr>
+                        <tr class="border-b border-gray-100"><td class="py-1.5 pr-3 font-mono font-semibold">Q4</td><td class="pr-3"><span class="text-blue-500">Optional*</span></td><td>92</td></tr>
                         <tr><td class="py-1.5 pr-3 font-mono font-semibold">School Year</td><td class="pr-3"><span class="text-red-500">Yes</span></td><td>2025-2026</td></tr>
                     </tbody>
                 </table>
             </div>
-            <p class="text-xs text-gray-400 mt-3"><i class="fas fa-info-circle mr-1"></i>Existing grades for the same student/subject/quarter/school year will be <strong>updated</strong>. New ones will be inserted.</p>
+            <p class="text-xs text-gray-400 mt-3"><i class="fas fa-info-circle mr-1"></i>*At least one quarter column (Q1-Q4) must have a grade. Leave empty quarters blank. Existing grades will be <strong>updated</strong>.</p>
         </div>
 
         <!-- Step 2: Upload -->

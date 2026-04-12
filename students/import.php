@@ -72,7 +72,7 @@ $skipped = 0;
 $errors = [];
 $rowNum = 1;
 
-$insertStmt = $pdo->prepare("INSERT INTO students (lrn, first_name, last_name, middle_name, name_suffix, gender, birthdate, section_id, strand_id, school_year, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+$insertStmt = $pdo->prepare("INSERT INTO students (lrn, first_name, last_name, middle_name, name_suffix, gender, birthdate, section_id, strand_id, strand, grade_level, school_year, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
 $checkStmt = $pdo->prepare("SELECT id FROM students WHERE lrn = ?");
 
 $currentUserId = $_SESSION['user_id'] ?? null;
@@ -94,8 +94,35 @@ while (($row = fgetcsv($handle)) !== false) {
     $gender    = trim($row[$colIndex['gender']] ?? '');
     $birthdate = array_key_exists('birthdate', $colIndex) ? trim($row[$colIndex['birthdate']] ?? '') : '';
     $sectionName = strtolower(trim($row[$colIndex['section name']] ?? ''));
-    $strandCode  = strtolower(trim($row[$colIndex['strand code']] ?? ''));
+    $strandCodeRaw  = trim($row[$colIndex['strand code']] ?? '');
     $schoolYear  = trim($row[$colIndex['school year']] ?? '');
+
+    // Parse Strand Code format: STRAND-GRADE (e.g., STEM-11, ABM-12)
+    $parsedStrand = null;
+    $parsedGradeLevel = null;
+    $strandCode = '';
+
+    if ($strandCodeRaw !== '') {
+        // Check if Strand Code contains hyphen (new format: STEM-11)
+        if (strpos($strandCodeRaw, '-') !== false) {
+            $parts = explode('-', $strandCodeRaw, 2);
+            $parsedStrand = strtoupper(trim($parts[0]));
+            $parsedGradeLevel = trim($parts[1]);
+
+            // Validate grade level (must be 11 or 12)
+            if (!in_array($parsedGradeLevel, ['11', '12'], true)) {
+                $errors[] = "Row $rowNum ($lrn): Invalid grade level \"$parsedGradeLevel\" in Strand Code. Only Grade 11 and 12 are allowed, skipped.";
+                $skipped++;
+                continue;
+            }
+            $parsedGradeLevel = (int)$parsedGradeLevel;
+            $strandCode = strtolower($parsedStrand);
+        } else {
+            // Legacy format: just strand code without grade (e.g., STEM)
+            $strandCode = strtolower($strandCodeRaw);
+            $parsedStrand = strtoupper($strandCodeRaw);
+        }
+    }
 
     // Normalize LRNs that may have been saved in scientific notation (e.g. 1.001E+11)
     if ($lrn !== '' && preg_match('/^[0-9]+(?:\.[0-9]+)?[eE][+-]?[0-9]+$/', $lrn)) {
@@ -135,6 +162,8 @@ while (($row = fgetcsv($handle)) !== false) {
         $secGrade = $secGradeStmt->fetchColumn();
         if ($secGrade && $secGrade >= 7 && $secGrade <= 10) {
             $strandId = null; // Force no strand for JHS
+            $parsedStrand = null;
+            $parsedGradeLevel = null;
         }
     }
 
@@ -142,7 +171,7 @@ while (($row = fgetcsv($handle)) !== false) {
         $errors[] = "Row $rowNum ($lrn): Section \"$sectionName\" not found, student added without section.";
     }
     if ($strandCode && !$strandId) {
-        $errors[] = "Row $rowNum ($lrn): Strand \"$strandCode\" not found, student added without strand.";
+        $errors[] = "Row $rowNum ($lrn): Strand \"$parsedStrand\" not found, student added without strand.";
     }
 
     $birthdateFormatted = null;
@@ -185,6 +214,8 @@ while (($row = fgetcsv($handle)) !== false) {
             $birthdateFormatted,
             $sectionId,
             $strandId,
+            $parsedStrand,
+            $parsedGradeLevel,
             sanitize($schoolYear),
             $currentUserId
         ]);

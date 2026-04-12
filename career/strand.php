@@ -7,24 +7,24 @@ requireRole('guidance');
 $sectionFilter = $_GET['section'] ?? '';
 $searchQuery   = $_GET['search'] ?? '';
 
-// Only JHS sections (G7-G10)
+// Only Grade 10 sections
 $allSections = $pdo->query("
-    SELECT * FROM sections WHERE grade_level BETWEEN 7 AND 10
-    ORDER BY grade_level, section_name
+    SELECT * FROM sections WHERE grade_level = 10
+    ORDER BY section_name
 ")->fetchAll();
 
 // Summary counts
 $totalJHS = $pdo->query("
     SELECT COUNT(*) FROM students s
     JOIN sections sec ON s.section_id = sec.id
-    WHERE s.status = 'active' AND sec.grade_level BETWEEN 7 AND 10
+    WHERE s.status = 'active' AND sec.grade_level = 10
 ")->fetchColumn();
 
 $generatedCount = $pdo->query("
     SELECT COUNT(DISTINCT cr.student_id) FROM career_recommendations cr
     JOIN students s ON cr.student_id = s.id
     JOIN sections sec ON s.section_id = sec.id
-    WHERE cr.recommendation_type = 'strand' AND sec.grade_level BETWEEN 7 AND 10
+    WHERE cr.recommendation_type = 'strand' AND sec.grade_level = 10
 ")->fetchColumn();
 
 $pendingCount = $totalJHS - $generatedCount;
@@ -41,7 +41,7 @@ $listQuery = "
     LEFT JOIN non_academic_indicators nai ON nai.student_id = s.id
     LEFT JOIN career_recommendations cr
         ON cr.student_id = s.id AND cr.recommendation_type = 'strand'
-    WHERE s.status = 'active' AND sec.grade_level BETWEEN 7 AND 10
+    WHERE s.status = 'active' AND sec.grade_level = 10
 ";
 $params = [];
 if ($sectionFilter) {
@@ -65,7 +65,7 @@ require_once __DIR__ . '/../includes/sidebar.php';
 <div class="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6">
     <div class="stat-card" style="background:#eff6ff;">
         <div class="flex items-center justify-between mb-2">
-            <span class="text-sm font-medium text-gray-600">JHS Students (G7–G10)</span>
+            <span class="text-sm font-medium text-gray-600">Grade 10 Students</span>
             <div class="w-10 h-10 rounded-lg flex items-center justify-center" style="background:#dbeafe;">
                 <i class="fas fa-user-graduate" style="color:#1d4ed8;"></i>
             </div>
@@ -96,7 +96,7 @@ require_once __DIR__ . '/../includes/sidebar.php';
 <div class="bg-indigo-50 border border-indigo-100 rounded-xl p-4 mb-6 flex gap-3 items-start">
     <i class="fas fa-graduation-cap text-indigo-500 mt-0.5 text-lg flex-shrink-0"></i>
     <div class="text-sm text-indigo-800">
-        <p class="font-semibold mb-1">Strand Recommendation Module — Grade 7 to Grade 10</p>
+        <p class="font-semibold mb-1">Strand Recommendation Module — Grade 10</p>
         <p class="text-xs text-indigo-700">Uses a <strong>Random Forest</strong> model: academic competency (Q4), skills assessment, interests, technical skill level, entrance exam, and career preference. Parent fields are not used. Output: <strong>Top 3 strands</strong> by majority vote across <?= (int) RandomForestRecommender::N_TREES ?> decision trees — open a student for vote tallies.</p>
     </div>
 </div>
@@ -108,7 +108,7 @@ require_once __DIR__ . '/../includes/sidebar.php';
                placeholder="Search name or LRN..."
                class="form-input w-52" onchange="this.form.submit()">
         <select name="section" class="form-select w-48" onchange="this.form.submit()">
-            <option value="">All JHS Sections</option>
+            <option value="">All Grade 10 Sections</option>
             <?php foreach ($allSections as $sec): ?>
                 <option value="<?= $sec['id'] ?>" <?= $sectionFilter == $sec['id'] ? 'selected' : '' ?>>
                     G<?= $sec['grade_level'] ?> — <?= sanitize($sec['section_name']) ?>
@@ -207,9 +207,9 @@ require_once __DIR__ . '/../includes/sidebar.php';
                 <tr>
                     <td colspan="9" class="text-center text-gray-400 py-10">
                         <i class="fas fa-graduation-cap text-3xl mb-2 block text-gray-300"></i>
-                        No Grade 7–10 students found.
+                        No Grade 10 students found.
                         <?php if (!$sectionFilter && !$searchQuery): ?>
-                        <br><span class="text-xs">Add JHS sections and students to use this module.</span>
+                        <br><span class="text-xs">Add Grade 10 sections and students to use this module.</span>
                         <?php endif; ?>
                     </td>
                 </tr>

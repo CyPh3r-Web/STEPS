@@ -51,13 +51,29 @@ if (!$header) {
 // Normalize header (strip BOM, quotes, whitespace)
 $header = array_map(fn($h) => strtolower(trim(str_replace(["\xEF\xBB\xBF", '"'], '', $h))), $header);
 
-$requiredCols = ['lrn', 'subject code', 'quarter', 'grade', 'school year'];
+$requiredCols = ['lrn', 'subject code', 'school year'];
+$quarterCols = ['q1', 'q2', 'q3', 'q4'];
+
 foreach ($requiredCols as $col) {
     if (!in_array($col, $header)) {
         fclose($handle);
         header('Location: ' . BASE_URL . 'students/grades.php?import_error=' . urlencode("Missing required column: \"$col\". Please use the provided template."));
         exit;
     }
+}
+
+// Check that at least one quarter column exists
+$hasQuarterCol = false;
+foreach ($quarterCols as $q) {
+    if (in_array($q, $header)) {
+        $hasQuarterCol = true;
+        break;
+    }
+}
+if (!$hasQuarterCol) {
+    fclose($handle);
+    header('Location: ' . BASE_URL . 'students/grades.php?import_error=' . urlencode("Missing quarter columns. At least one of Q1, Q2, Q3, Q4 is required."));
+    exit;
 }
 
 $colIndex = array_flip($header);
@@ -93,8 +109,6 @@ while (($row = fgetcsv($handle)) !== false) {
 
     $lrn         = trim($row[$colIndex['lrn']] ?? '');
     $subjectCode = strtoupper(trim($row[$colIndex['subject code']] ?? ''));
-    $quarter     = strtoupper(trim($row[$colIndex['quarter']] ?? ''));
-    $grade       = trim($row[$colIndex['grade']] ?? '');
     $schoolYear  = trim($row[$colIndex['school year']] ?? '');
 
     // Normalize LRN from scientific notation (e.g. 1.001E+11)
@@ -103,22 +117,8 @@ while (($row = fgetcsv($handle)) !== false) {
     }
 
     // Validate required fields
-    if (empty($lrn) || empty($subjectCode) || empty($quarter) || $grade === '' || empty($schoolYear)) {
-        $errors[] = "Row $rowNum: Missing required fields (LRN, Subject Code, Quarter, Grade, or School Year), skipped.";
-        $skipped++;
-        continue;
-    }
-
-    // Validate quarter
-    if (!in_array($quarter, ['Q1', 'Q2', 'Q3', 'Q4'])) {
-        $errors[] = "Row $rowNum (LRN: $lrn): Invalid quarter \"$quarter\". Must be Q1, Q2, Q3, or Q4, skipped.";
-        $skipped++;
-        continue;
-    }
-
-    // Validate grade range
-    if (!is_numeric($grade) || (float)$grade < 60 || (float)$grade > 100) {
-        $errors[] = "Row $rowNum (LRN: $lrn): Grade \"$grade\" must be a number between 60 and 100, skipped.";
+    if (empty($lrn) || empty($subjectCode) || empty($schoolYear)) {
+        $errors[] = "Row $rowNum: Missing required fields (LRN, Subject Code, or School Year), skipped.";
         $skipped++;
         continue;
     }
@@ -139,19 +139,50 @@ while (($row = fgetcsv($handle)) !== false) {
     }
     $subjectId = $subjectMap[$subjectCode];
 
-    // Check if grade already exists (to distinguish insert vs update in counts)
-    $existsStmt->execute([$studentId, $subjectId, $quarter, $schoolYear]);
-    $exists = $existsStmt->fetch();
-
-    try {
-        $upsertStmt->execute([$studentId, $subjectId, $quarter, (float)$grade, $schoolYear, $_SESSION['user_id']]);
-        if ($exists) {
-            $updated++;
-        } else {
-            $inserted++;
+    // Process each quarter column (Q1, Q2, Q3, Q4)
+    $rowHasGrade = false;
+    foreach ($quarterCols as $qCol) {
+        if (!isset($colIndex[$qCol])) {
+            continue; // Column not present in CSV
         }
-    } catch (PDOException $e) {
-        $errors[] = "Row $rowNum (LRN: $lrn): Database error — " . $e->getMessage();
+        
+        $grade = trim($row[$colIndex[$qCol]] ?? '');
+        
+        // Skip empty grade values
+        if ($grade === '') {
+            continue;
+        }
+        
+        $quarter = strtoupper($qCol); // Q1, Q2, Q3, Q4
+        
+        // Validate grade range
+        if (!is_numeric($grade) || (float)$grade < 60 || (float)$grade > 100) {
+            $errors[] = "Row $rowNum (LRN: $lrn, $quarter): Grade \"$grade\" must be a number between 60 and 100, skipped.";
+            continue;
+        }
+        
+        $rowHasGrade = true;
+        
+        // Check if grade already exists (to distinguish insert vs update in counts)
+        $existsStmt->execute([$studentId, $subjectId, $quarter, $schoolYear]);
+        $exists = $existsStmt->fetch();
+
+        try {
+            $upsertStmt->execute([$studentId, $subjectId, $quarter, (float)$grade, $schoolYear, $_SESSION['user_id']]);
+            if ($exists) {
+                $updated++;
+            } else {
+                $inserted++;
+            }
+        } catch (PDOException $e) {
+            $errors[] = "Row $rowNum (LRN: $lrn, $quarter): Database error -- " . $e->getMessage();
+            $skipped++;
+        }
+    }
+    
+    // If no valid grades were processed for this row
+    if (!$rowHasGrade) {
+        $errors[] = "Row $rowNum (LRN: $lrn): No valid grades found in Q1-Q4 columns.";
         $skipped++;
     }
 }

@@ -138,7 +138,7 @@ $currentUserId = $_SESSION['user_id'] ?? 0;
 $userRole = $_SESSION['role'] ?? '';
 
 // Query students list with average grade
-$query = "SELECT s.*, sec.section_name, sec.grade_level, st.strand_code, st.strand_name,
+$query = "SELECT s.*, sec.section_name, sec.grade_level as section_grade_level, st.strand_code, st.strand_name,
           (SELECT AVG(g.grade) FROM grades g WHERE g.student_id = s.id) as avg_grade,
           u.full_name as created_by_name
           FROM students s
@@ -420,8 +420,8 @@ $filterBase = array_filter(['search' => $search, 'section' => $sectionFilter, 's
                         <td class="font-medium"><?= sanitize($s['last_name'] . ', ' . $s['first_name'] . ' ' . ($s['middle_name'] ?? '')) ?></td>
                         <td><?= $s['gender'] ?></td>
                         <td><?= sanitize($s['section_name'] ?? 'N/A') ?></td>
-                        <td><?= $s['grade_level'] ?? 'N/A' ?></td>
-                        <td><span class="badge badge-blue"><?= sanitize($s['strand_code'] ?? 'N/A') ?></span></td>
+                        <td><?= $s['grade_level'] ?? $s['section_grade_level'] ?? 'N/A' ?></td>
+                        <td><span class="badge badge-blue"><?= sanitize($s['strand'] ?? $s['strand_code'] ?? 'N/A') ?></span></td>
                         <td class="text-xs text-gray-500"><?= sanitize($s['created_by_name'] ?? 'Unknown') ?></td>
                         <?php if (!$isGuidance): ?>
                         <td class="font-semibold"><?= $s['avg_grade'] !== null ? formatNumber($s['avg_grade']) : '<span class="text-gray-300">—</span>' ?></td>
@@ -686,7 +686,8 @@ $filterBase = array_filter(['search' => $search, 'section' => $sectionFilter, 's
                         <tr class="border-b border-gray-100"><td class="py-1.5 pr-3 font-mono font-semibold">Gender</td><td class="pr-3"><span class="text-red-500">Yes</span></td><td>Male / Female</td></tr>
                         <tr class="border-b border-gray-100"><td class="py-1.5 pr-3 font-mono font-semibold">Birthdate</td><td class="pr-3">No</td><td>2008-03-15</td></tr>
                         <tr class="border-b border-gray-100"><td class="py-1.5 pr-3 font-mono font-semibold">Section Name</td><td class="pr-3">No</td><td>Section A</td></tr>
-                        <tr class="border-b border-gray-100"><td class="py-1.5 pr-3 font-mono font-semibold">Strand Code</td><td class="pr-3">No</td><td>STEM</td></tr>
+                        <tr class="border-b border-gray-100"><td class="py-1.5 pr-3 font-mono font-semibold">Strand Code</td><td class="pr-3">No</td><td>STEM-11, ABM-12</td></tr>
+                        <tr><td colspan="3" class="py-2 text-xs text-gray-400 italic">Strand Code format: STRAND-GRADE (e.g., STEM-11, ABM-12). Grade must be 11 or 12.</td></tr>
                         <tr><td class="py-1.5 pr-3 font-mono font-semibold">School Year</td><td class="pr-3"><span class="text-red-500">Yes</span></td><td>2025-2026</td></tr>
                     </tbody>
                 </table>

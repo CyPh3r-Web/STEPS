@@ -187,7 +187,24 @@ document.addEventListener('DOMContentLoaded', function() {
             <option value="immersion" <?= $typeFilter === 'immersion' ? 'selected' : '' ?>>Immersion</option>
         </select>
     </form>
-    <button onclick="openModal('addSubjectModal')" class="btn btn-primary btn-sm"><i class="fas fa-plus"></i> Add Subject</button>
+    <div class="flex items-center gap-2">
+        <div class="relative" id="cheatsheetDropdown">
+            <button onclick="toggleCheatsheetDropdown()" class="btn btn-secondary btn-sm">
+                <i class="fas fa-download"></i> Download Cheatsheet
+                <i class="fas fa-chevron-down text-xs ml-1"></i>
+            </button>
+            <div id="cheatsheetMenu" class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50 hidden">
+                <a href="download_cheatsheet.php?grade=7" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Grade 7</a>
+                <a href="download_cheatsheet.php?grade=8" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Grade 8</a>
+                <a href="download_cheatsheet.php?grade=9" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Grade 9</a>
+                <a href="download_cheatsheet.php?grade=10" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Grade 10</a>
+                <div class="border-t border-gray-100 my-1"></div>
+                <a href="download_cheatsheet.php?grade=11" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Grade 11 (SHS)</a>
+                <a href="download_cheatsheet.php?grade=12" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Grade 12 (SHS)</a>
+            </div>
+        </div>
+        <button onclick="openModal('addSubjectModal')" class="btn btn-primary btn-sm"><i class="fas fa-plus"></i> Add Subject</button>
+    </div>
 </div>
 
 <p class="text-sm text-gray-500 mb-4"><?= count($subjects) ?> subject(s) found</p>
@@ -357,6 +374,20 @@ document.addEventListener('DOMContentLoaded', function() { openModal('addSubject
 <?php elseif ($openModal === 'edit'): ?>
 document.addEventListener('DOMContentLoaded', function() { openModal('editSubjectModal'); });
 <?php endif; ?>
+
+function toggleCheatsheetDropdown() {
+    const menu = document.getElementById('cheatsheetMenu');
+    menu.classList.toggle('hidden');
+}
+
+// Close dropdown when clicking outside
+document.addEventListener('click', function(e) {
+    const dropdown = document.getElementById('cheatsheetDropdown');
+    const menu = document.getElementById('cheatsheetMenu');
+    if (dropdown && menu && !dropdown.contains(e.target)) {
+        menu.classList.add('hidden');
+    }
+});
 </script>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

@@ -7,31 +7,31 @@ requireRole('guidance');
 $sectionFilter = $_GET['section'] ?? '';
 $searchQuery   = $_GET['search'] ?? '';
 
-// Only SHS sections (G11-G12)
+// Only Grade 12 sections
 $allSections = $pdo->query("
-    SELECT * FROM sections WHERE grade_level IN (11, 12)
-    ORDER BY grade_level, section_name
+    SELECT * FROM sections WHERE grade_level = 12
+    ORDER BY section_name
 ")->fetchAll();
 
 // Summary
 $totalSHS = $pdo->query("
     SELECT COUNT(*) FROM students s
     JOIN sections sec ON s.section_id = sec.id
-    WHERE s.status = 'active' AND sec.grade_level IN (11, 12)
+    WHERE s.status = 'active' AND sec.grade_level = 12
 ")->fetchColumn();
 
 $generatedCount = $pdo->query("
     SELECT COUNT(DISTINCT cr.student_id) FROM career_recommendations cr
     JOIN students s ON cr.student_id = s.id
     JOIN sections sec ON s.section_id = sec.id
-    WHERE cr.recommendation_type = 'course' AND sec.grade_level IN (11, 12)
+    WHERE cr.recommendation_type = 'course' AND sec.grade_level = 12
 ")->fetchColumn();
 
 $avgEmpRaw = $pdo->query("
     SELECT AVG(cr.employability_score) FROM career_recommendations cr
     JOIN students s ON cr.student_id = s.id
     JOIN sections sec ON s.section_id = sec.id
-    WHERE cr.recommendation_type = 'course' AND sec.grade_level IN (11, 12)
+    WHERE cr.recommendation_type = 'course' AND sec.grade_level = 12
 ")->fetchColumn();
 $avgEmp = $avgEmpRaw ? (float)$avgEmpRaw : 0;
 $empLvl = getEmployabilityLevel($avgEmp);
@@ -52,7 +52,7 @@ $listQuery = "
     LEFT JOIN non_academic_indicators nai ON nai.student_id = s.id
     LEFT JOIN career_recommendations cr
         ON cr.student_id = s.id AND cr.recommendation_type = 'course'
-    WHERE s.status = 'active' AND sec.grade_level IN (11, 12)
+    WHERE s.status = 'active' AND sec.grade_level = 12
 ";
 $params = [];
 if ($sectionFilter) {
@@ -78,7 +78,7 @@ require_once __DIR__ . '/../includes/sidebar.php';
 <div class="grid grid-cols-1 md:grid-cols-4 gap-5 mb-6">
     <div class="stat-card" style="background:#f0fdf4;">
         <div class="flex items-center justify-between mb-2">
-            <span class="text-sm font-medium text-gray-600">SHS Students (G11–G12)</span>
+            <span class="text-sm font-medium text-gray-600">Grade 12 Students</span>
             <div class="w-10 h-10 rounded-lg flex items-center justify-center" style="background:#dcfce7;">
                 <i class="fas fa-user-graduate" style="color:#166534;"></i>
             </div>
@@ -121,7 +121,7 @@ require_once __DIR__ . '/../includes/sidebar.php';
 <div class="bg-green-50 border border-green-100 rounded-xl p-4 mb-6 flex gap-3 items-start">
     <i class="fas fa-route text-green-500 mt-0.5 text-lg flex-shrink-0"></i>
     <div class="text-sm text-green-800">
-        <p class="font-semibold mb-1">Course Recommendation Module — Grade 11 &amp; Grade 12</p>
+        <p class="font-semibold mb-1">Course Recommendation Module — Grade 12</p>
         <p class="text-xs text-green-700"><strong>Random Forest</strong> ranks <strong>Top 3 courses</strong> using SHS Q4, work immersion (in the model), skills, interests, technical level, entrance exam, and career preference. <strong>Employability readiness</strong> in this table equals the <strong>Work Immersion subject grade</strong> (0–100) for counseling—not a blended formula.</p>
     </div>
 </div>
@@ -133,7 +133,7 @@ require_once __DIR__ . '/../includes/sidebar.php';
                placeholder="Search name or LRN..."
                class="form-input w-52" onchange="this.form.submit()">
         <select name="section" class="form-select w-48" onchange="this.form.submit()">
-            <option value="">All SHS Sections</option>
+            <option value="">All Grade 12 Sections</option>
             <?php foreach ($allSections as $sec): ?>
                 <option value="<?= $sec['id'] ?>" <?= $sectionFilter == $sec['id'] ? 'selected' : '' ?>>
                     G<?= $sec['grade_level'] ?> — <?= sanitize($sec['section_name']) ?>
@@ -252,9 +252,9 @@ require_once __DIR__ . '/../includes/sidebar.php';
                 <tr>
                     <td colspan="9" class="text-center text-gray-400 py-10">
                         <i class="fas fa-route text-3xl mb-2 block text-gray-300"></i>
-                        No Grade 11–12 students found.
+                        No Grade 12 students found.
                         <?php if (!$sectionFilter && !$searchQuery): ?>
-                        <br><span class="text-xs">Add SHS sections and students to use this module.</span>
+                        <br><span class="text-xs">Add Grade 12 sections and students to use this module.</span>
                         <?php endif; ?>
                     </td>
                 </tr>
